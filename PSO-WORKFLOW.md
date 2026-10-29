@@ -143,3 +143,11 @@ Evidence：Saved/PSOBaseline/20261030_005549_11234d。六次 ExitCode=0、Valid=
 测试门控仅在 opt-in PSOValidation 路线使用，正常 Host Game 尚未接入面向玩家的 Loading/输入门控。Trace包含 MapReady/ReadyForSkills/技能书签，已保存供复核；本轮尚未做每个残余长帧的 Insights 调用链归因。DriverCacheClearVerified=false 等先前限制继续保留。
 
 AnalyzeBaseline 增加等待与进程到门控耗时的汇总，已对试跑与正式批次运行成功。阶段2B的队列门控实验完成；下一阶段为 Stable Shader Keys 的首次采集 Cook，然后录制/转换 Bundled PSO，生产化 Loading 和定向覆盖保留后续接入事项。
+
+## 阶段 3A：Stable Shader Keys 首次采集 Cook（2026-10-30）
+
+NeedsShaderStableKeys=true，保留 bShareMaterialShaderCode=true、原SM5/SM6目标配置。新增 PackageCollection 脚本，使用独立采集包输出目录，记录命令、日志、EXE SHA256及SHK快照。无C++改动，不需要重新编译目标。
+
+Cook/打包成功：Saved/PSOCollection/Cooks/20261030_011759_fe7356，BuildCookRun 37.18s，脚本总38.60s。Global SM5/SM6与ActionRoguelike SM5/SM6共四个SHK，SM6项目键112994字节、Global键274165字节。当前尚未生成AR2原始PSO记录或SPC；采集脚本已准备，实际运行验收待下一步。
+
+采集将显式关闭Auto并以logPSO记录，文件缓存Enabled=1用于记录、StartupMode=0暂停预编译，ExcludePrecachePSO=0；独立UserDir。无需清理驱动缓存，不将本次运行当作性能对照。PowerShell Parser与git diff --check通过，转换与Bundled运行时加载尚未执行。
