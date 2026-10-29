@@ -54,3 +54,11 @@ call "F:\Git_Repository\summeryy001\ActionRoguelike2\Scripts\RunBaseline.local.b
 ```
 
 验收后正式三对将 Pairs 改为 3。未指定 Profile 时仍使用 Baseline 全关闭覆盖值；必须显式指定 Auto。ProxyCreationStrategy=1 允许未就绪对象延迟代理创建，不能把画面暂时缺失当成完整覆盖；需结合 Validation、日志与 Insights。
+
+结果汇总（默认要求完整三对）：
+
+```bat
+powershell -NoProfile -ExecutionPolicy Bypass -File "F:\Git_Repository\summeryy001\ActionRoguelike2\Scripts\AnalyzeBaseline.ps1" -EvidencePath "本次 Evidence 绝对路径"
+```
+
+试跑一对时追加 `-ExpectedPairs 1`。输出目录内生成 summary.json，保留各次实际配置、退出码和原始计数。脚本拒绝失败／未完成批次；中位数指标是技能触发后两秒内最大 Tick 帧耗时，不是单独 PSO 编译时间。

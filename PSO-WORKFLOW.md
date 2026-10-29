@@ -89,3 +89,24 @@ Evidence：Saved/PSOBaseline/20261029_210954_82eed6。六次 acceptance.Valid=tr
 先前清空材质请求、提前初始化 allocator、清空状态缓存的实验均已撤回。临时页分配栈诊断已从 Core 源码撤回。恢复原阶段 2 GlobalShaders=1，与 Auto=1、Validation=2 一起复测。唯一引擎功能改动记录在 Patches/UE58-PSOPrecache-owned-thread-pool.patch；尚在验证，不把实验包纳入性能报告。
 
 线程池所有权修复试跑通过：Saved/PSOBaseline/20261030_002654_838eef，Cold/Warm 均 ExitCode=0、Valid=true、SuccessfulActions=6，GlobalShaders=1、Auto=1、Validation=2、ProxyCreationStrategy=1、Bundled=0。Editor/Game 编译成功（69.70s）、打包成功（43s）。临时 Core 诊断和两个无效源代码实验均已撤回；引擎仅保留 RHI 的底层线程池 ownership 修复。本地引擎修改不代替 AR2 补丁来源记录。
+
+## 阶段 2A：自动预缓存、无就绪等待的正式三对（2026-10-30）
+
+Evidence：Saved/PSOBaseline/20261030_002930_239d21。六次均 Valid=true、ExitCode=0、SuccessfulActions=6。全部采用修复私有线程池 ownership 的同一包；Auto=1、GlobalShaders=1、Validation=2、ProxyCreationStrategy=1、Bundled=0。同样 DX12 SM6、1280×720、固定时间 TestLevel 路线，不等待预缓存归零。
+
+| 操作 | 阶段1 Cold | 阶段2A Cold | 阶段1 Warm | 阶段2A Warm |
+|---|---:|---:|---:|---:|
+| Primary_First |132.7669|130.2181|9.8159|12.4253|
+| Blackhole_First |132.1477|23.6412|80.2984|11.5617|
+| Dash_First |91.8447|16.1651|8.8454|13.7215|
+| Primary_Repeat |10.2161|13.8541|8.2412|10.9516|
+| Blackhole_Repeat |9.1299|14.7826|9.2144|10.8450|
+| Dash_Repeat |9.4065|14.1127|9.3121|11.6244|
+
+单位 ms；技能触发后2秒内最大 Tick 帧耗时的三轮中位数。阶段2A第3轮 Cold Primary_First=316.6561ms，不能因中位数约130ms忽略该尖刺。Cold Graphics 慢创建次数中位数从98降至43，Compute从217到219；Warm Graphics从12到1，Compute均0。这些创建次数不等于卡顿帧数。
+
+结果：黑洞和 Dash 的 Cold 长帧改善；首次 Primary 没有明显改善，重复技能和 Warm 的若干指标略高，不能声称全局无卡顿。Cold 首次技能约5秒时仍有三千余待处理任务；当前流程未设置资源/PSO就绪门控。pendingBundled 字段实际为混合剩余数，Bundled开关仍0，不能据它声称加载了随包PSO。尚未做此次正式批次逐帧 Insights 归因，也没有可靠的 process-to-interactive 启动统计。
+
+新增 AnalyzeBaseline.ps1，可按 ExpectedPairs 验证完整运行和技能窗口并写 summary.json。已用阶段1三对与阶段2试跑校验中位数，与先前结果一致；失败批次被拒绝。正式批次 summary 已生成。引擎补丁 reverse --check 通过，Core临时诊断与Engine状态缓存实验均已撤回，RHI仅保留6行新增/1行替换的ownership修复；阶段2正式包无临时分配栈开销。
+
+下一步阶段2B：在场景/技能资源加载完成后等对应PSO就绪，再启动相同相对技能路线；分别记录等待耗时与可玩阶段帧耗时。随后再进入 Stable Keys/Cook/record/convert/Bundled 流程。DriverCacheClearVerified=false、阶段1旧Hash校验缺失、AI和资源可见性非确定性等限制继续保留。
