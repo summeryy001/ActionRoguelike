@@ -110,3 +110,13 @@ Evidence：Saved/PSOBaseline/20261030_002930_239d21。六次均 Valid=true、Exi
 新增 AnalyzeBaseline.ps1，可按 ExpectedPairs 验证完整运行和技能窗口并写 summary.json。已用阶段1三对与阶段2试跑校验中位数，与先前结果一致；失败批次被拒绝。正式批次 summary 已生成。引擎补丁 reverse --check 通过，Core临时诊断与Engine状态缓存实验均已撤回，RHI仅保留6行新增/1行替换的ownership修复；阶段2正式包无临时分配栈开销。
 
 下一步阶段2B：在场景/技能资源加载完成后等对应PSO就绪，再启动相同相对技能路线；分别记录等待耗时与可玩阶段帧耗时。随后再进入 Stable Keys/Cook/record/convert/Bundled 流程。DriverCacheClearVerified=false、阶段1旧Hash校验缺失、AI和资源可见性非确定性等限制继续保留。
+
+## 阶段 2B：等待已加载资源的 PSO 队列就绪
+
+新增 opt-in `-PSOValidationWaitForReady`，脚本 profile 为 AutoReady，配置与 Auto 相同。MapReady 后，等待玩家存活、IsAsyncLoading=false、NumActivePrecacheRequests=0 连续稳定0.5秒，记录 gateComplete/ReadyForSkills 后再启动5/10/16秒等同一相对技能时间表。每秒记录队列和加载状态，180秒超时返回非零；脚本验收必须看到 pendingAuto=0、asyncLoading=0 的 gateComplete。
+
+ReadyWaitSeconds 是地图首次测试 Tick 到门控释放的等待，不能称作进程完整启动耗时。等待期间世界继续 Tick、AI和可见性仍可能变化。队列归零只覆盖已提交请求，未生成的技能组件和未来动态资源并不会自动被覆盖；该试验用于判定是否需要下一步定向资源/组件预加载。没有预先释放技能来人为暖场，也没有人为延长 PSO 编译。
+
+正在重新编译打包并试跑一对；阶段2B尚未验收。
+
+门控试跑通过：20261030_005209_87ffc6，Cold/Warm 均 Valid=true、ExitCode=0、六项动作成功。等待分别41.736s/0.752s；Cold Primary_First 窗口最大23.0955ms。代码编译57.68s、打包44s成功。试跑初版尚无 ProcessToReadyGateSeconds 字段；正式脚本增加按日志 UTC 与启动时刻计算的进程启动至门控释放耗时，不将其称为完整交互就绪。等待期间世界和AI继续运行，可能自然暖化额外PSO，必须作为比较限制。

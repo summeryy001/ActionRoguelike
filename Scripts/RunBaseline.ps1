@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([ValidateRange(1,10)][int]$Pairs=3, [switch]$Execute, [ValidateSet('Baseline','Auto')][string]$Profile='Baseline')
+param([ValidateRange(1,10)][int]$Pairs=3, [switch]$Execute, [ValidateSet('Baseline','Auto','AutoReady')][string]$Profile='Baseline')
 $ErrorActionPreference='Stop'
 $Root=(Resolve-Path "$PSScriptRoot/..").Path
 $Package=Join-Path $Root 'Saved/PSOValidation/Package/Windows'
@@ -32,7 +32,7 @@ $Settings=[ordered]@{
     'r.PSOPrecaching'=0; 'r.PSOPrecache.GlobalShaders'=0; 'r.ShaderPipelineCache.Enabled'=0
     'r.PSOPrecache.Validation'=0; 'r.PSOPrecache.ProxyCreationStrategy'=0
 }
-if($Profile -eq 'Auto') { $Settings['r.PSOPrecaching']=1; $Settings['r.PSOPrecache.GlobalShaders']=1; $Settings['r.PSOPrecache.Validation']=2; $Settings['r.PSOPrecache.ProxyCreationStrategy']=1 }
+if($Profile -ne 'Baseline') { $Settings['r.PSOPrecaching']=1; $Settings['r.PSOPrecache.GlobalShaders']=1; $Settings['r.PSOPrecache.Validation']=2; $Settings['r.PSOPrecache.ProxyCreationStrategy']=1 }
 $Overrides=($Settings.Keys | ForEach-Object {'[SystemSettings]:{0}={1}' -f $_,$Settings[$_]}) -join ','
 $Queries=@('t.IdleWhenNotForeground 0','t.MaxFPS 0','r.VSync 0','pso.StartupCheck 0')+@($Settings.Keys)
 $Results=@()
@@ -45,6 +45,7 @@ for($pair=1;$pair -le $Pairs;$pair++) {
             ('-PSOValidationOutput="{0}"' -f $Run), ('-UserDir="{0}/User"' -f $Run),
             ('-abslog="{0}/game.log"' -f $Run), ('-tracefile="{0}/capture.utrace"' -f $Run),
             ('-ini:Engine:'+ $Overrides), ('-ExecCmds="'+($Queries -join ',')+'"'))
+        if($Profile -eq 'AutoReady') {$ArgsList+='-PSOValidationWaitForReady'}
         if($mode -eq 'Cold') {$ArgsList+='-clearPSODriverCache'}
         @{Profile=$Profile;Mode=$mode;Pair=$pair;Execute=[bool]$Execute;Executable=$Exe;Arguments=$ArgsList;Settings=$Settings;
           Revision=(& git -C $Root rev-parse HEAD);WorkingTree=@(& git -C $Root status --short);
@@ -73,13 +74,23 @@ for($pair=1;$pair -le $Pairs;$pair++) {
             $Actual[$key]=if($matches.Count){[int]$matches[$matches.Count-1].Groups[1].Value}else{$null}
         }
         $SettingsOK=@($Settings.Keys | Where-Object {$null -eq $Actual[$_] -or $Actual[$_] -ne $Settings[$_]}).Count -eq 0
+        $Gate=[regex]::Match($Log,'PSOValidation gateComplete enabled=1 waitSeconds=([0-9.]+) pendingAuto=0 peakPending=(\d+) asyncLoading=0')
+        $GateOK=$Profile -ne 'AutoReady' -or $Gate.Success
+        $GateWaitSeconds=if($Gate.Success){[double]::Parse($Gate.Groups[1].Value,[Globalization.CultureInfo]::InvariantCulture)}else{$null}
+                $ReadyTimestamp=[regex]::Match($Log,'\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\][^\r\n]*PSOValidation gateComplete')
+        $ProcessToReadyGateSeconds=$null
+        if($ReadyTimestamp.Success) {
+            $utc=[datetime]::ParseExact($ReadyTimestamp.Groups[1].Value,'yyyy.MM.dd-HH.mm.ss:fff',[Globalization.CultureInfo]::InvariantCulture,([Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal))
+            $ProcessToReadyGateSeconds=($utc-$Start.ToUniversalTime()).TotalSeconds
+        }
         $Trace=Get-Item "$Run/capture.utrace" -ErrorAction SilentlyContinue
         $Valid=$Process.ExitCode -eq 0 -and $Successful -eq 6 -and $Log.Contains('label=Complete') -and $Log.Contains('respawnAlive=1') -and
-            !$Log.Contains('Ensure condition failed') -and !$Log.Contains('Fatal error:') -and $SettingsOK -and $Trace -and $Trace.Length -gt 0 -and (Test-Path "$Run/frames.csv")
+            !$Log.Contains('Ensure condition failed') -and !$Log.Contains('Fatal error:') -and $SettingsOK -and $GateOK -and $Trace -and $Trace.Length -gt 0 -and (Test-Path "$Run/frames.csv")
         $Init=[regex]::Match($Log,'Engine is initialized\. Leaving FEngineLoop::Init\(\).*?Took ([0-9.]+)')
         $InitSeconds=if($Init.Success){[double]::Parse($Init.Groups[1].Value,[Globalization.CultureInfo]::InvariantCulture)}else{$null}
         @{Valid=[bool]$Valid;ExitCode=$Process.ExitCode;SuccessfulActions=$Successful;ActualSettings=$Actual;
-          EngineReportedInitSeconds=$InitSeconds;StartupTimingNote='Engine-reported init only; not process-to-interactive startup. Inspect Trace and MapReady bookmark.';
+          ReadyGateRequired=($Profile -eq 'AutoReady');ReadyGatePassed=$GateOK;ReadyWaitSeconds=$GateWaitSeconds;ProcessToReadyGateSeconds=$ProcessToReadyGateSeconds;
+          EngineReportedInitSeconds=$InitSeconds;StartupTimingNote='ReadyWaitSeconds: MapReady-to-gate. ProcessToReadyGateSeconds: process launch to logged gate release, not full interactive readiness. Engine init may be unavailable.';
           ProcessWallSeconds=((Get-Date)-$Start).TotalSeconds;DriverCacheClearVerified=$false
         } | ConvertTo-Json -Depth 5 | Set-Content "$Run/acceptance.json" -Encoding UTF8
         if(!$Valid) {throw "Validation failed; remaining runs stopped: $Run"}

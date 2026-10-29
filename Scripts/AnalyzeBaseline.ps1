@@ -14,7 +14,7 @@ $runs=@(Get-ChildItem $EvidencePath -Directory | Where-Object {$_.Name -match '^
     $log=Get-Content (Join-Path $_.FullName 'game.log') -Raw
     $stats=[regex]::Match($log,'runtimeCreated=(\d+) graphicsHitches=(\d+) computeHitches=(\d+) precachedHitches=(\d+)')
     [pscustomobject]@{Run=$_.Name;Mode=$m.Mode;Profile=$m.Profile;Valid=$a.Valid;ExitCode=$a.ExitCode;
-        SuccessfulActions=$a.SuccessfulActions;Settings=$a.ActualSettings;DriverCacheClearVerified=$a.DriverCacheClearVerified;
+        SuccessfulActions=$a.SuccessfulActions;ReadyWaitSeconds=$a.ReadyWaitSeconds;ReadyGateRequired=$a.ReadyGateRequired;ReadyGatePassed=$a.ReadyGatePassed;ProcessToReadyGateSeconds=$a.ProcessToReadyGateSeconds;Settings=$a.ActualSettings;DriverCacheClearVerified=$a.DriverCacheClearVerified;
         RuntimeCreated=if($stats.Success){[int]$stats.Groups[1].Value}else{$null};
         SlowGraphics=if($stats.Success){[int]$stats.Groups[2].Value}else{$null};
         SlowCompute=if($stats.Success){[int]$stats.Groups[3].Value}else{$null}}

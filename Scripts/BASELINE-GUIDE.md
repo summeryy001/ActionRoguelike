@@ -62,3 +62,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "F:\Git_Repository\summeryy0
 ```
 
 试跑一对时追加 `-ExpectedPairs 1`。输出目录内生成 summary.json，保留各次实际配置、退出码和原始计数。脚本拒绝失败／未完成批次；中位数指标是技能触发后两秒内最大 Tick 帧耗时，不是单独 PSO 编译时间。
+
+阶段2B（就绪门控）试跑使用 `-Execute -Pairs 1 -Profile AutoReady`，正式三对改为 `-Pairs 3`。等待值记录在 acceptance.json 的 ReadyWaitSeconds 中，Trace 书签为 MapReady、ReadyForSkills。Auto profile 仍不等待，Baseline 仍全部关闭。门控只覆盖已加载资源和已提交请求，不等于所有技能 PSO 覆盖完整。

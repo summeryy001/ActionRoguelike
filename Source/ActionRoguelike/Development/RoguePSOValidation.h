@@ -17,5 +17,9 @@ public:
 private:
 	int32 Step = 0;
 	double StartTime = 0;
+    double MapReadyTime = 0;
+    double ReadySince = 0;
+    double LastGateLog = -1;
+    uint32 PeakPending = 0;
 	FString FrameCSV = TEXT("ElapsedSeconds,FrameMs,Step\n");
 };

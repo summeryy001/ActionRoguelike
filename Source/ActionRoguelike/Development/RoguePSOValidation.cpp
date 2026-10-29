@@ -11,6 +11,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "UObject/UObjectGlobals.h"
 #include "HAL/PlatformMisc.h"
 #include "ProfilingDebugging/MiscTrace.h"
 #include "SharedGameplayTags.h"
@@ -25,13 +26,13 @@ ARoguePSOValidation::ARoguePSOValidation()
 void ARoguePSOValidation::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (StartTime == 0)
-	{
-		StartTime = FPlatformTime::Seconds();
-		TRACE_BOOKMARK(TEXT("PSOValidation: MapReady"));
-	}
-	const double Elapsed = FPlatformTime::Seconds() - StartTime;
-	FrameCSV += FString::Printf(TEXT("%.6f,%.4f,%d\n"), Elapsed, DeltaSeconds * 1000.0, Step);
+    const double Now = FPlatformTime::Seconds();
+    if (MapReadyTime == 0)
+    {
+        MapReadyTime = Now;
+        TRACE_BOOKMARK(TEXT("PSOValidation: MapReady"));
+        UE_LOG(LogTemp, Display, TEXT("PSOValidation gateBegin enabled=%d"), FParse::Param(FCommandLine::Get(), TEXT("PSOValidationWaitForReady")));
+    }
 
 	APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
 	// Keep natural AI damage from interrupting the skill route. Death is tested explicitly.
@@ -43,6 +44,37 @@ void ARoguePSOValidation::Tick(float DeltaSeconds)
 			Actions->ApplyAttributeChange(SharedGameplayTags::Attribute_Health, 100.0f, Player, EAttributeModifyType::AddBase);
 		}
 	}
+
+	    if (StartTime == 0)
+    {
+        const bool bWait = FParse::Param(FCommandLine::Get(), TEXT("PSOValidationWaitForReady"));
+        const uint32 Pending = PipelineStateCache::NumActivePrecacheRequests();
+        PeakPending = FMath::Max(PeakPending, Pending);
+        const bool bResourcesReady = Player && URogueGameplayFunctionLibrary::IsAlive(Player) && !IsAsyncLoading();
+        const double WaitSeconds = Now - MapReadyTime;
+        if (bWait)
+        {
+            if (WaitSeconds - LastGateLog >= 1.0)
+            {
+                LastGateLog = WaitSeconds;
+                UE_LOG(LogTemp, Display, TEXT("PSOValidation gateWaiting seconds=%.3f pendingAuto=%u asyncLoading=%d playerReady=%d"), WaitSeconds, Pending, IsAsyncLoading(), bResourcesReady);
+            }
+            ReadySince = (bResourcesReady && Pending == 0) ? (ReadySince == 0 ? Now : ReadySince) : 0;
+            if (WaitSeconds > 180.0)
+            {
+                UE_LOG(LogTemp, Error, TEXT("PSOValidation gateTimeout seconds=%.3f pendingAuto=%u"), WaitSeconds, Pending);
+                FPlatformMisc::RequestExitWithStatus(false, 2);
+                SetActorTickEnabled(false);
+                return;
+            }
+            if (ReadySince == 0 || Now - ReadySince < 0.5) return;
+        }
+        StartTime = Now;
+        TRACE_BOOKMARK(TEXT("PSOValidation: ReadyForSkills"));
+        UE_LOG(LogTemp, Display, TEXT("PSOValidation gateComplete enabled=%d waitSeconds=%.3f pendingAuto=%u peakPending=%u asyncLoading=%d"), bWait, WaitSeconds, Pending, PeakPending, IsAsyncLoading());
+    }
+    const double Elapsed = Now - StartTime;
+    FrameCSV += FString::Printf(TEXT("%.6f,%.4f,%d\n"), Elapsed, DeltaSeconds * 1000.0, Step);
 
 	const double Times[] = {5, 10, 16, 23, 28, 34, 38, 40, 44, 50, 56};
 	if (Step >= UE_ARRAY_COUNT(Times) || Elapsed < Times[Step])
