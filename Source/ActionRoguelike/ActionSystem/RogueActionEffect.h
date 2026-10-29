@@ -1,0 +1,55 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "ActionSystem/RogueAction.h"
+#include "RogueActionEffect.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class ACTIONROGUELIKE_API URogueActionEffect : public URogueAction
+{
+	GENERATED_BODY()
+
+public:
+	virtual void StartAction_Implementation(AActor* Instigator) override;
+
+	virtual void StopAction_Implementation(AActor* Instigator) override;
+	
+	void IncrementStackSize();
+	
+protected:
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Effect")
+	float Duration = 0.0f;
+
+	/* Time between 'ticks' to apply effect */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Effect")
+	float Period = 0.0f;
+	
+	/* Adding the same Effect multiple times instead increases the stack size. Can be used to amplify certain effects. Resets effect duration */
+	UPROPERTY(Transient, BlueprintReadOnly, Category=Effect)
+	int32 StackCount = 1;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Effect")
+	bool bResetDurationOnStackIncrease = true;
+
+	FTimerHandle PeriodHandle;
+	FTimerHandle DurationHandle;
+
+	/*
+	 * Runs on CLIENT/SERVER
+	 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Effect")
+	void ExecutePeriodicEffect(AActor* Instigator);
+	
+	void ResetDuration();
+
+public:
+
+	UFUNCTION(BlueprintCallable, Category = "Action")
+	float GetTimeRemaining() const;
+};
