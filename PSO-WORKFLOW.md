@@ -65,3 +65,27 @@ Evidence：Saved/PSOBaseline/20261029_210954_82eed6。六次 acceptance.Valid=tr
 调试实验第一次误复用了第二次失败运行的输出路径，其日志/Trace 已被调试运行覆盖；20261029_212605_b9eb6e 不再作为独立失败证据使用，以首次失败、第三次和最近失败记录为准。所有调试运行均不纳入性能统计。转储和临时调试脚本保留于忽略的 Saved 下。
 
 阶段 2 尚未通过，正式三对未启动。下一步核对退出断点的检查条件、剩余 MemStack 页持有者与线程清理顺序；不通过忽略退出码、强制结束进程或降低检查掩盖异常。
+
+## 阶段 2 范围调整：组件／材质 Auto
+
+材质请求清理实验编译、打包成功但仍以 777003 退出（20261029_235838_0197ce），已撤回源码。Validation=0 的隔离仍退出 777003；保持 Auto=1、Validation=2、ProxyCreationStrategy=1，仅令 GlobalShaders=0 的隔离返回 0。该隔离包尚含清理实验，需恢复源码后重新打包并试跑确认。
+
+将阶段 2 的 Auto profile 明确改为组件／材质预缓存：PSOPrecaching=1、GlobalShaders=0、Validation=2、ProxyCreationStrategy=1、ShaderPipelineCache.Enabled=0。与基线相比，GlobalShaders 保持 0。Global Shader 开关相关的退出缺陷尚未根治，留作独立问题，不声称完整 Global 自动预缓存已通过。
+
+准备按恢复后的源码重新 Build/Cook/package，确认正常退出后再进行正式三对。先前提前初始化页分配器和清理材质请求的源代码实验均不进入正式版本。
+
+补充隔离结论：恢复源码、仅 GlobalShaders=0 的干净包仍失败（20261030_000458_7beeb3）。此前 Global0 返回 0 的隔离包同时含 ClearMaterialPSORequests，因此不能把正常退出单独归因于关闭 Global Shader。当前重新验证“GlobalShaders=0 + 测试退出前清理材质预缓存请求”的组合；该组合的单次成功尚不足以宣称根治。清理只在测量与 Trace 停止、WaitForAllTasks 完成后调用，不能掩盖测量期间问题。
+
+组合方案复测（20261030_000747_05268f）：Cold 返回 0，但 Warm 返回 777003，故仍未通过。继续排查 PSOPrecache.cpp 中全局 FPSOPrecacheStateCache，其 CachedPSOPrecacheResults 可持有 FPSOPrecacheRequestResult.AsyncCompileEvent，静态析构前未显式清空。
+
+新增引擎候选补丁 Patches/UE58-PSOPrecache-exit-cleanup.patch：在 FCoreDelegates::OnExit 期间清空该缓存，提前释放事件引用；本地共享引擎 PSOPrecache.cpp 已应用该候选改动，其余已有引擎工作区改动未动。AR2 测试退出前仍清理材质请求。正在构建和验证，不将候选当成已证实根因。该引擎改动会进入后续使用本地引擎重新构建的程序，当前 Client2 既有包未更新。
+
+## 根因证据：PSO 私有线程池的所有权
+
+诊断版记录的两个未释放页，其分配栈均为 FCpuProfilerTrace::OutputDynamicEventType -> FMemStackBase::AllocateNewChunk，调用方为 PSO 编译线程 FPSOPrecacheAsyncTask::DoTaskWork，经 FQueuedThreadPoolWrapper::FScheduledWork 执行。证据在 Saved/OutstandingPagesSymbols.txt。与先前“缓存事件引用”的猜测不同，直接持有者是存活工作线程上的 CPU Trace 名称缓冲区。
+
+本地 PipelineStateCache.cpp 的 FPSOPrecacheThreadPool::Get 自行 Allocate/Create 底层线程池，随后仅保存非 owning FQueuedThreadPoolWrapper。ShutdownThreadPool 只 delete wrapper，wrapper::Destroy 排空工作但不销毁底层线程池，造成工作线程及 TLS 遗留。候选修复由 FPSOPrecacheThreadPool 使用 TUniquePtr 保持底层线程池所有权，先销毁 wrapper 再 Reset 底层 pool，后者析构调用 Destroy，等待线程退出并清理 TLS。
+
+先前清空材质请求、提前初始化 allocator、清空状态缓存的实验均已撤回。临时页分配栈诊断已从 Core 源码撤回。恢复原阶段 2 GlobalShaders=1，与 Auto=1、Validation=2 一起复测。唯一引擎功能改动记录在 Patches/UE58-PSOPrecache-owned-thread-pool.patch；尚在验证，不把实验包纳入性能报告。
+
+线程池所有权修复试跑通过：Saved/PSOBaseline/20261030_002654_838eef，Cold/Warm 均 ExitCode=0、Valid=true、SuccessfulActions=6，GlobalShaders=1、Auto=1、Validation=2、ProxyCreationStrategy=1、Bundled=0。Editor/Game 编译成功（69.70s）、打包成功（43s）。临时 Core 诊断和两个无效源代码实验均已撤回；引擎仅保留 RHI 的底层线程池 ownership 修复。本地引擎修改不代替 AR2 补丁来源记录。

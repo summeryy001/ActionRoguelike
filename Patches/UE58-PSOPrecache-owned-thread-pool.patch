@@ -1,0 +1,32 @@
+diff --git a/Engine/Source/Runtime/RHI/Private/PipelineStateCache.cpp b/Engine/Source/Runtime/RHI/Private/PipelineStateCache.cpp
+index 445fe91f9..499630dcb 100644
+--- a/Engine/Source/Runtime/RHI/Private/PipelineStateCache.cpp
++++ b/Engine/Source/Runtime/RHI/Private/PipelineStateCache.cpp
+@@ -578,7 +578,8 @@ public:
+ 
+ 				FQueuedThreadPool* PSOPrecompileCompileThreadPoolLocal = FPSOQueuedThreadPoolWrapper::Allocate();
+ 				PSOPrecompileCompileThreadPoolLocal->Create(GetDesiredPoolSize(), 512 * 1024, (EThreadPriority)GPSOPrecompileThreadPoolThreadPriority, TEXT("PSOPrecompilePool"));
+-				PSOPrecompileCompileThreadPool = new FPSOQueuedThreadPoolWrapper(PSOPrecompileCompileThreadPoolLocal);
++				OwnedThreadPool.Reset(PSOPrecompileCompileThreadPoolLocal);
++                PSOPrecompileCompileThreadPool = new FPSOQueuedThreadPoolWrapper(OwnedThreadPool.Get());
+ 			}
+ 		}
+ 		return *PSOPrecompileCompileThreadPool;
+@@ -590,6 +591,9 @@ public:
+ 		if (LocalPool != nullptr)
+ 		{
+ 			delete LocalPool;
++            // The scheduling wrapper is non-owning. Join the privately allocated workers
++            // so their TLS (including CPU Trace name buffers) is released before page pools.
++            OwnedThreadPool.Reset();
+ 		}
+ 	}
+ 
+@@ -616,6 +620,7 @@ public:
+ private:
+ 	FCriticalSection LockCS;
+ 	std::atomic<FQueuedThreadPool*> PSOPrecompileCompileThreadPool {};
++    TUniquePtr<FQueuedThreadPool> OwnedThreadPool;
+ };
+ 
+ static FPSOPrecacheThreadPool GPSOPrecacheThreadPool;
