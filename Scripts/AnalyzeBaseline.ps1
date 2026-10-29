@@ -28,8 +28,14 @@ $skills=@($frames | Group-Object Mode,Action | ForEach-Object {
         MedianMaxFrameMs=(Median @($g | ForEach-Object {[double]::Parse($_.MaxFrameMs,[Globalization.CultureInfo]::InvariantCulture)}))}
 })
 if($skills.Count -ne 12 -or @($skills | Where-Object {$_.Runs -ne $ExpectedPairs}).Count){throw 'Incomplete skill windows.'}
-[ordered]@{Evidence=$EvidencePath;Runs=$runs;Skills=$skills;
+$readiness=@($runs | Where-Object {$_.ReadyGateRequired} | Group-Object Mode | ForEach-Object {
+    [pscustomobject]@{Mode=$_.Name;Runs=$_.Count;
+        MedianReadyWaitSeconds=(Median @($_.Group | ForEach-Object {$_.ReadyWaitSeconds} | Where-Object {$null -ne $_}));
+        MedianProcessToReadyGateSeconds=(Median @($_.Group | ForEach-Object {$_.ProcessToReadyGateSeconds} | Where-Object {$null -ne $_}))}
+})
+[ordered]@{Readiness=$readiness;Evidence=$EvidencePath;Runs=$runs;Skills=$skills;
     Metric='Median of per-run maximum Tick DeltaSeconds intersecting the 2-second post-action window; not PSO-only cost.';
     Caveats=@('Driver cache clearing is requested, not proven.','AI/visibility are not fully deterministic.','Process wall duration includes the route and shutdown, not startup.','Slow PSO creates are not hitch frame counts.')
 } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $EvidencePath 'summary.json') -Encoding UTF8
 $skills | Format-Table -AutoSize
+$readiness | Format-Table -AutoSize

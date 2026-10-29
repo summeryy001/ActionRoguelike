@@ -120,3 +120,26 @@ ReadyWaitSeconds 是地图首次测试 Tick 到门控释放的等待，不能称
 正在重新编译打包并试跑一对；阶段2B尚未验收。
 
 门控试跑通过：20261030_005209_87ffc6，Cold/Warm 均 Valid=true、ExitCode=0、六项动作成功。等待分别41.736s/0.752s；Cold Primary_First 窗口最大23.0955ms。代码编译57.68s、打包44s成功。试跑初版尚无 ProcessToReadyGateSeconds 字段；正式脚本增加按日志 UTC 与启动时刻计算的进程启动至门控释放耗时，不将其称为完整交互就绪。等待期间世界和AI继续运行，可能自然暖化额外PSO，必须作为比较限制。
+
+## 阶段 2B 正式三对结果（2026-10-30）
+
+Evidence：Saved/PSOBaseline/20261030_005549_11234d。六次 ExitCode=0、Valid=true、SuccessfulActions=6、ReadyGatePassed=true；实际 Auto=1、GlobalShaders=1、Validation=2、ProxyCreationStrategy=1、Bundled=0。三对使用同一个门控包，package inventory 在批次前后检查通过。
+
+| 操作 | Cold 中位数 ms | Warm 中位数 ms |
+|---|---:|---:|
+| Primary_First |23.7288|10.6929|
+| Blackhole_First |12.6035|12.2419|
+| Dash_First |13.3911|10.2411|
+| Primary_Repeat |10.3154|11.6038|
+| Blackhole_Repeat |10.5289|10.7689|
+| Dash_Repeat |11.0264|11.2407|
+
+同一口径：技能触发后两秒内最大 Tick 帧耗时的三轮中位数。Cold Primary 三次23.0275/24.2222/23.7288ms；Warm第2轮Dash仍有37.688ms长帧，不据此声称零卡顿或直接归因PSO。
+
+门控等待（地图首次测试Tick到释放）：Cold 45.444/44.037/45.492s，中位数45.444s；Warm 0.731/0.767/0.503s，中位数0.731s。进程启动到门控释放中位数 Cold 48.6696613s、Warm 3.7419192s，是依据日志UTC与启动时刻估计，不能当作完整用户交互就绪时间。精确每轮值以 acceptance.json/summary.json 为准。
+
+对比阶段2A无门控Cold中位数，Primary 130.2181→23.7288ms、Blackhole 23.6412→12.6035ms、Dash 16.1651→13.3911ms。结论是当前测试路线通过约45秒冷启动等待降低技能释放阶段长帧。两个阶段的包因测试代码增加门控而不同，不是同包严格A/B；世界在等待期间继续模拟，AI可自然触发额外资源和PSO，不能把全部改善都归因于自动预缓存。没有声称已加载资源之外的技能组件完整覆盖，没有将所有慢创建计数当作路线内计数。
+
+测试门控仅在 opt-in PSOValidation 路线使用，正常 Host Game 尚未接入面向玩家的 Loading/输入门控。Trace包含 MapReady/ReadyForSkills/技能书签，已保存供复核；本轮尚未做每个残余长帧的 Insights 调用链归因。DriverCacheClearVerified=false 等先前限制继续保留。
+
+AnalyzeBaseline 增加等待与进程到门控耗时的汇总，已对试跑与正式批次运行成功。阶段2B的队列门控实验完成；下一阶段为 Stable Shader Keys 的首次采集 Cook，然后录制/转换 Bundled PSO，生产化 Loading 和定向覆盖保留后续接入事项。
