@@ -157,3 +157,13 @@ Cook/打包成功：Saved/PSOCollection/Cooks/20261030_011759_fe7356，BuildCook
 采集验收通过：Saved/PSOCollection/Recordings/20261030_012108_86abbf，ExitCode=0、六项动作和复活成功、十项实际配置与请求一致、PackageUnchanged=true。自动预缓存关闭，DX12 SM6，文件缓存记录开启且预编译暂停，没有请求驱动缓存清理。
 
 生成一个 .rec.upipelinecache，116181字节，SHA256=42CE6F48EB8E89032383CA706E42110EEDBDD8C852B4E444009322A3527D649E。最终 BoundPSOsOnly 日志为 saved 508 total、508 new、5 removed；508是本次保存的记录数，不代表整个游戏全部PSO，也不是预编译完成数量。匹配SM6项目与Global两份SHK已复制至该证据目录的StableKeys中，并核对其Cook快照Hash。录制日志和Trace保留。下一步转换Stable PSO清单并检查丢弃/映射情况。
+
+## 阶段 3C：转换 Stable PSO 打包输入（2026-10-30）
+
+新增 ConvertPSO 脚本，验证原始记录和匹配Cook的SM6 Global/项目SHK Hash，调用本地ShaderPipelineCacheTools expand。正式转换Evidence：Saved/PSOCollection/Conversions/20261030_012733_b16dc6，ExitCode=0、Valid=true。读取508条原始PSO、14105条唯一Shader稳定映射，生成700个stable PSO组合；未发现PSO映射失败日志。组合数可能因Shader稳定键别名/候选组合扩张而多于记录数，后续Cook解析后会再次去重。
+
+安装输入 Build/Windows/PipelineCaches/PSO_ActionRoguelike_PCD3D_SM6.spc，47544字节，SHA256=06D410DF5D67E76C62EF5428BC4008947A31D3B1E85E75F8966A838563B8EC5B。早先手工预览转换输出47499字节，同样700组合，未安装；并行输出排序/压缩可能变化，不要求两次SPC字节相同，正式输入以脚本manifest为准。仅此SPC作为特意生成的Build输入纳入Git，原始记录和SHK保留在忽略的Saved。
+
+观察到首次Stable Keys Cook在尚无SPC输入时也生成了3512字节的SM5/SM6运行时stable缓存；本地引擎IncludeComputePSODuringCook默认2（仅自动加入Niagara Compute）。已将当时Metadata运行时缓存补充快照至原CookEvidence/RuntimeCaches，待后续Dump核对数量。不能将所有stable文件都解释为来自手工SPC。录制时StartupMode=0，预编译暂停；没有用这次采集评价预缓存性能。
+
+下一步重新Cook生成包含SPC的运行时stable缓存，核对加载与完成数量，然后做同包模式对照。
