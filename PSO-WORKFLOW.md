@@ -55,3 +55,13 @@ Evidence：Saved/PSOBaseline/20261029_210954_82eed6。六次 acceptance.Valid=tr
 阶段 2 初次验证：BuildCookRun 47.69s，BUILD SUCCESSFUL。两次 Cold 试跑 Evidence 分别为 20261029_212325_c14503、20261029_212605_b9eb6e；五项实际配置符合 Auto，六项动作和复活均成功，最终 pendingAuto=0，但进程都返回 777003，acceptance.Valid=false，Warm 未执行。引擎 GenericPlatformCrashContext.h 定义该代码为 CrashReporterCrashed；日志正常收尾不足以证明进程正常退出。尚无有效崩溃栈，未放宽验收或标记阶段 2 完成。下一步定位退出阶段异常后重跑一对，再开展正式三对。
 
 验证：PowerShell Parser 无错误、git diff --check 通过；新的 package.json 非空（9630 字符），相对路径 Inventory 已覆盖包内容。任务数量/完成耗时的完善和 Insights 对照仍待退出问题解决，不以现有诊断混合队列数字作为独立 Bundled 指标。
+
+## 退出异常定位进展
+
+2026-10-29：常规第三次复现 777003（20261029_233908_64a33b）。使用 Windows Debug API 在调试器下复现，路线完成并返回 0；退出前捕获 breakpoint，DbgHelp 符号解析为 FPageAllocator::Construct 的 PageAllocator 静态析构函数 +63。对应 MemStack.cpp 的 FPageAllocator 析构和 LockFreeFixedSizeAllocator.h 的 GetNumUsed()==0 检查，是目前的排查线索；尚未确定未释放页的持有者。
+
+实验性提前初始化 FPageAllocator：Editor/Game 编译成功（100.76s），重新打包成功（约41s），但 Cold 仍为 777003（20261029_234659_9f912c），故已撤回该源代码实验，未将其作为修复提交。当前包仍含该无效实验编译产物，后续正式测试前必须按恢复后的源码重新构建打包。
+
+调试实验第一次误复用了第二次失败运行的输出路径，其日志/Trace 已被调试运行覆盖；20261029_212605_b9eb6e 不再作为独立失败证据使用，以首次失败、第三次和最近失败记录为准。所有调试运行均不纳入性能统计。转储和临时调试脚本保留于忽略的 Saved 下。
+
+阶段 2 尚未通过，正式三对未启动。下一步核对退出断点的检查条件、剩余 MemStack 页持有者与线程清理顺序；不通过忽略退出码、强制结束进程或降低检查掩盖异常。
