@@ -19,3 +19,7 @@ Local launch/build/package scripts and existing diagnostic code are retained. Ge
 5. Compare disabled, automatic, bundled and combined modes under controlled cold/warm conditions.
 
 Each completed stage or meaningful fix gets its own local commit and validation entry. Commit history is the authoritative sequence; stages are not marked complete before verification. No remote is configured or pushed.
+
+## 提交语言约定（2026-10-29）
+
+后续 commit message 使用中文，专业术语保持英文；保留已有基线提交及标签。此次仅更新文档约定，不涉及代码或运行配置。
