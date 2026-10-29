@@ -151,3 +151,9 @@ NeedsShaderStableKeys=true，保留 bShareMaterialShaderCode=true、原SM5/SM6�
 Cook/打包成功：Saved/PSOCollection/Cooks/20261030_011759_fe7356，BuildCookRun 37.18s，脚本总38.60s。Global SM5/SM6与ActionRoguelike SM5/SM6共四个SHK，SM6项目键112994字节、Global键274165字节。当前尚未生成AR2原始PSO记录或SPC；采集脚本已准备，实际运行验收待下一步。
 
 采集将显式关闭Auto并以logPSO记录，文件缓存Enabled=1用于记录、StartupMode=0暂停预编译，ExcludePrecachePSO=0；独立UserDir。无需清理驱动缓存，不将本次运行当作性能对照。PowerShell Parser与git diff --check通过，转换与Bundled运行时加载尚未执行。
+
+## 阶段 3B：首次 PSO 原始记录（2026-10-30）
+
+采集验收通过：Saved/PSOCollection/Recordings/20261030_012108_86abbf，ExitCode=0、六项动作和复活成功、十项实际配置与请求一致、PackageUnchanged=true。自动预缓存关闭，DX12 SM6，文件缓存记录开启且预编译暂停，没有请求驱动缓存清理。
+
+生成一个 .rec.upipelinecache，116181字节，SHA256=42CE6F48EB8E89032383CA706E42110EEDBDD8C852B4E444009322A3527D649E。最终 BoundPSOsOnly 日志为 saved 508 total、508 new、5 removed；508是本次保存的记录数，不代表整个游戏全部PSO，也不是预编译完成数量。匹配SM6项目与Global两份SHK已复制至该证据目录的StableKeys中，并核对其Cook快照Hash。录制日志和Trace保留。下一步转换Stable PSO清单并检查丢弃/映射情况。
