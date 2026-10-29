@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([ValidateRange(1,10)][int]$Pairs=3, [switch]$Execute)
+param([ValidateRange(1,10)][int]$Pairs=3, [switch]$Execute, [ValidateSet('Baseline','Auto')][string]$Profile='Baseline')
 $ErrorActionPreference='Stop'
 $Root=(Resolve-Path "$PSScriptRoot/..").Path
 $Package=Join-Path $Root 'Saved/PSOValidation/Package/Windows'
@@ -7,7 +7,7 @@ $Exe=Join-Path $Package 'ActionRoguelike/Binaries/Win64/ActionRoguelike.exe'
 if (!(Test-Path $Exe)) { throw 'Package AR2 before running this script.' }
 function Inventory {
     @(Get-ChildItem $Package -Recurse -File | Where-Object {
-        $_.FullName -notmatch '[\\/]Saved[\\/]' -and $_.Extension -ne '.pdb'
+        $_.FullName.Substring($Package.Length+1) -notmatch '[\\/]Saved[\\/]' -and $_.Extension -ne '.pdb'
     } | Sort-Object FullName | ForEach-Object {
         [ordered]@{Path=$_.FullName.Substring($Package.Length+1); Bytes=$_.Length; SHA256=(Get-FileHash $_.FullName).Hash}
     })
@@ -32,6 +32,7 @@ $Settings=[ordered]@{
     'r.PSOPrecaching'=0; 'r.PSOPrecache.GlobalShaders'=0; 'r.ShaderPipelineCache.Enabled'=0
     'r.PSOPrecache.Validation'=0; 'r.PSOPrecache.ProxyCreationStrategy'=0
 }
+if($Profile -eq 'Auto') { $Settings['r.PSOPrecaching']=1; $Settings['r.PSOPrecache.GlobalShaders']=1; $Settings['r.PSOPrecache.Validation']=2; $Settings['r.PSOPrecache.ProxyCreationStrategy']=1 }
 $Overrides=($Settings.Keys | ForEach-Object {'[SystemSettings]:{0}={1}' -f $_,$Settings[$_]}) -join ','
 $Queries=@('t.IdleWhenNotForeground 0','t.MaxFPS 0','r.VSync 0','pso.StartupCheck 0')+@($Settings.Keys)
 $Results=@()
@@ -45,7 +46,7 @@ for($pair=1;$pair -le $Pairs;$pair++) {
             ('-abslog="{0}/game.log"' -f $Run), ('-tracefile="{0}/capture.utrace"' -f $Run),
             ('-ini:Engine:'+ $Overrides), ('-ExecCmds="'+($Queries -join ',')+'"'))
         if($mode -eq 'Cold') {$ArgsList+='-clearPSODriverCache'}
-        @{Mode=$mode;Pair=$pair;Execute=[bool]$Execute;Executable=$Exe;Arguments=$ArgsList;Settings=$Settings;
+        @{Profile=$Profile;Mode=$mode;Pair=$pair;Execute=[bool]$Execute;Executable=$Exe;Arguments=$ArgsList;Settings=$Settings;
           Revision=(& git -C $Root rev-parse HEAD);WorkingTree=@(& git -C $Root status --short);
           ColdCacheRequested=($mode -eq 'Cold');DriverCacheClearVerified=$false;
           Route='Existing PSOValidation actor, direct TestLevel listen; not main-menu startup';

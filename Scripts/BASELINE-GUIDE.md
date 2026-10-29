@@ -44,3 +44,13 @@ call "F:\Git_Repository\summeryy001\ActionRoguelike2\Scripts\RunBaseline.local.b
 ## 本次验证状态
 
 已通过 PowerShell 语法解析和一对 Cold/Warm 的 dry run。尚未运行真实自动批次；因此实际 CVar 日志解析、自动动作及 Trace 内容仍需首次执行确认。只准备脚本，没有清理驱动缓存。
+
+## 阶段 2 自动预缓存对照
+
+配置已开启 r.PSOPrecaching=1、GlobalShaders=1、Validation=2、ProxyCreationStrategy=1；Bundled 仍为 0。重新打包后先执行一对验证：
+
+```bat
+call "F:\Git_Repository\summeryy001\ActionRoguelike2\Scripts\RunBaseline.local.bat" -Execute -Pairs 1 -Profile Auto
+```
+
+验收后正式三对将 Pairs 改为 3。未指定 Profile 时仍使用 Baseline 全关闭覆盖值；必须显式指定 Auto。ProxyCreationStrategy=1 允许未就绪对象延迟代理创建，不能把画面暂时缺失当成完整覆盖；需结合 Validation、日志与 Insights。

@@ -45,3 +45,13 @@ Evidence：Saved/PSOBaseline/20261029_210954_82eed6。六次 acceptance.Valid=tr
 试跑 Trace 的 computer-use 分析：Warm 首次 Dash 的 57.91ms 帧中，Sync_RenderingThread 53.65ms；同期 Background Worker #1 的 Graphics PSO Create time 55.36ms。该结果属于此前试跑 20261029_195726_f227f8，不混入本批统计。用户决定不继续追查 Dash 覆盖差异。
 
 阶段 1 基线已固化；阶段 2 先仅开启自动预缓存，Bundled 继续关闭。
+
+## 阶段 2：自动预缓存准备
+
+开启 Auto、GlobalShaders、Validation=2、ProxyCreationStrategy=1；Bundled 保持关闭。测试脚本增加显式 Profile Auto，默认仍为 Baseline。发现旧 Inventory 用绝对路径排除 Saved，导致包根本就在 Saved 下时清单为空；修正为相对路径。阶段 1 的包 Hash 一致性未得到有效验证，已有帧、日志和 Trace 仍保留，不补写成已验证。
+
+配置修改不涉及 C++；正在使用原 UE 本地引擎重新 Cook/stage/package，阶段 2 尚未验收。
+
+阶段 2 初次验证：BuildCookRun 47.69s，BUILD SUCCESSFUL。两次 Cold 试跑 Evidence 分别为 20261029_212325_c14503、20261029_212605_b9eb6e；五项实际配置符合 Auto，六项动作和复活均成功，最终 pendingAuto=0，但进程都返回 777003，acceptance.Valid=false，Warm 未执行。引擎 GenericPlatformCrashContext.h 定义该代码为 CrashReporterCrashed；日志正常收尾不足以证明进程正常退出。尚无有效崩溃栈，未放宽验收或标记阶段 2 完成。下一步定位退出阶段异常后重跑一对，再开展正式三对。
+
+验证：PowerShell Parser 无错误、git diff --check 通过；新的 package.json 非空（9630 字符），相对路径 Inventory 已覆盖包内容。任务数量/完成耗时的完善和 Insights 对照仍待退出问题解决，不以现有诊断混合队列数字作为独立 Bundled 指标。
