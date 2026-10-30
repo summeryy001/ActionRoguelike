@@ -181,3 +181,8 @@ AR2 Editor 与 Game Development 编译成功，129.09 秒。编译日志 Saved/P
 初次试跑 Saved/PSOOfficialFix/20261030_160746：首次左键 started=0，只有五次动作成功，严格验收判失败并停止；退出码仍为 0、Trace 已生成，未观察到崩溃。保留该证据，未放宽验收条件，随后完整四轮重跑通过。该问题属于路线动作未启动现象，尚未进一步归因。
 
 公司修复分支已推送，MR：https://git.gz4399.com/4399-unreal/unrealengine-4399/-/merge_requests/1 ，目标 release-5.8.3。尚未合并目标分支。AR2 只做本地提交，未配置 remote 或推送。Client2 Game/包未更新；共享引擎的 RHI Editor DLL 已随本轮编译更新。Patches 中旧补丁作为阶段历史保留，当前应采用官方 diff，禁止叠加两套补丁。
+
+## 官方修复合并确认（2026-10-30）
+
+用户已审核并合并公司 MR !1，远端源分支已删除。同步 origin 后，本地 release-5.8.3 已 fast-forward 至 077f17da50，包含移植提交 04e066ad1c。PipelineStateCache.cpp 与已编译、已完成四轮回归的移植版本无差异，无需仅因合并提交再次编译。既有其他引擎本地改动保留。阶段 2 的退出崩溃修复已进入公司目标分支；阶段 4 尚未开始。
+
