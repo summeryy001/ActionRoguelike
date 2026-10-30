@@ -186,3 +186,14 @@ AR2 Editor 与 Game Development 编译成功，129.09 秒。编译日志 Saved/P
 
 用户已审核并合并公司 MR !1，远端源分支已删除。同步 origin 后，本地 release-5.8.3 已 fast-forward 至 077f17da50，包含移植提交 04e066ad1c。PipelineStateCache.cpp 与已编译、已完成四轮回归的移植版本无差异，无需仅因合并提交再次编译。既有其他引擎本地改动保留。阶段 2 的退出崩溃修复已进入公司目标分支；阶段 4 尚未开始。
 
+## 阶段 4A：Bundled 构建工具首版与首次构建验收（2026-10-30）
+
+新增 Scripts/PackageBundled.local.bat、PackageBundled.ps1 与 PSO-BUNDLED-GUIDE.md。默认预览，-Execute 执行 BuildCookRun；沿用已编译 Game/Editor，不清理驱动缓存。独立归档 Saved/PSOBundled/Builds/<时间_标识>/Package；不覆盖阶段 3 采集包和快照。前置验证 SM6 SPC 存在且非空，保存输入快照及 Hash；检查构建期间输入/EXE 不变、SPC 读取日志、运行时缓存的生成时间与 Content/Metadata Hash 一致、归档 EXE Hash，以及 UnrealPak -List 包内缓存条目。成功才写 current-build.json。acceptance 的 RuntimeVerified=false 明确区分构建和运行验收。构建会更新 Saved/Cooked 与 staging 工作区，因此禁止并发 Cook。
+
+首次通过 CMD bat 验证时发现 Windows PowerShell 从 PowerShell 7 继承 PSModulePath 后无法自动找到 Get-FileHash；脚本改用本地 .NET SHA256 实现，随后 CMD 默认预览与执行均通过。PowerShell Parser、git diff --check 通过。最终版增加数量解析，使用本次原始 Cook 日志回放核对 508/0拒绝/192合并/512输出通过；该数量解析增补未再次执行整轮 Cook，首次 acceptance 的数量可查 pso-build-summary.log。
+
+构建证据：Saved/PSOBundled/Builds/20261030_175525_8214c7，ExitCode=0、Valid=true，含包内清单验收共66.08秒。SPC 700个稳定组合由本次 Cook 解析合并为508项，0拒绝、192合并；额外 Compute 加入后 sanity 前513项，过滤1项可能不支持的 RHI feature（FTSRRejectShadingCS Perm_53），最终512项：Graphics171、Compute341、RT0。不能简单把512-508都解释成新增可用项，因为中间还有过滤。
+
+SM6 runtime cache 116653字节，SHA256=8761495A70F5B4442F61465B48D83F1DE7E78D075B8F258A7A4482ADFD5BB69F，已核对进入归档 PAK；SM5 无手工 SPC，本次仍由 Cook 自动写出29个 Compute PSO。这也为之前约4KB的自动生成缓存提供进一步证据。包内 EXE SHA256=5F96BCA8641B296CA113237431AAEC4711E805D37ABF66785B4B8B40A3E98531，使用已回归的官方线程池修复 Game。
+
+当前只完成阶段4的构建部分。项目默认 Bundled 仍关闭，脚本未启动游戏，未观察 cache open/begin/complete，也未做冷缓存性能对照；后续运行验收需要显式传入 Bundled/StartupMode，并区分 Auto 混合队列与真正的随包事件。Loki 后续工具需保留采集模式（完整/补缺/隔离）、按场景/资源包分组、随包或CDN分发及分阶段预编译的配置维度；本脚本首版仅针对 AR2 Windows SM6 构建验证。
