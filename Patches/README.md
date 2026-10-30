@@ -1,5 +1,15 @@
 # UE 5.8 PSO thread pool ownership 修复
 
+## 当前采用官方修复（2026-10-30）
+
+Epic 官方提交：aa697db65d45a27da969b4b4aa850df732b2325f（PSO thread pool tears down inner thread pool also.）。本地公司引擎分支 fix/pso-thread-pool-official，移植提交 04e066ad1c。通过 cherry-pick --no-commit 引入，再用中文说明提交；保留官方作者及原 SHA。
+
+当前补丁快照为 UE58-PSOPrecache-official-aa697db.diff。与旧方案相同，先销毁 Wrapper，再销毁底层线程池；官方还增加 ShutdownThreadPool 的 LockCS 和 bHasShutdown 检查。不要与旧补丁叠加应用。当前本机引擎已替换为官方实现。
+
+旧补丁只作为阶段 2 历史保留，下面的 TUniquePtr 描述和“当前已应用”表述仅指当时状态。后续部署优先通过公司引擎修复分支/MR；手工补丁仅用于缺少提交对象时的回移。验证结果见 ../PSO-WORKFLOW.md。
+
+## 阶段 2 历史补丁
+
 补丁：UE58-PSOPrecache-owned-thread-pool.patch。
 
 本地引擎基线：5067c2640998f39caf2960b88727d8938a863a55，目录 F:/Git_Repository/4399-unreal/unrealengine-4399。仅修改 Runtime/RHI/Private/PipelineStateCache.cpp。

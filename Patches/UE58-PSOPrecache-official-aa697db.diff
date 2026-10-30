@@ -1,0 +1,66 @@
+diff --git a/Engine/Source/Runtime/RHI/Private/PipelineStateCache.cpp b/Engine/Source/Runtime/RHI/Private/PipelineStateCache.cpp
+index 52ed6e33b96f7..1cc383ed03712 100644
+--- a/Engine/Source/Runtime/RHI/Private/PipelineStateCache.cpp
++++ b/Engine/Source/Runtime/RHI/Private/PipelineStateCache.cpp
+@@ -8,6 +8,7 @@ PipelineStateCache.cpp: Pipeline state cache implementation.
+ #include "Async/AsyncWork.h"
+ #include "Async/TaskGraphInterfaces.h"
+ #include "Containers/Deque.h"
++#include "Misc/QueuedThreadPool.h"
+ #include "PipelineFileCache.h"
+ #include "Misc/ScopeRWLock.h"
+ #include "Misc/App.h"
+@@ -540,6 +541,7 @@ class FPSOQueuedThreadPoolWrapper : public FQueuedThreadPoolWrapper
+ 	FPSOQueuedThreadPoolWrapper(FQueuedThreadPool* InWrappedQueuedThreadPool)
+ 		: FQueuedThreadPoolWrapper(InWrappedQueuedThreadPool)
+ 	{}
++
+ protected:
+ 
+ 	virtual bool CanSchedule(EQueuedWorkPriority QueuePriority) const override
+@@ -567,13 +569,14 @@ class FPSOPrecacheThreadPool
+ 		if (PSOPrecompileCompileThreadPool.load() == nullptr)
+ 		{
+ 			FScopeLock lock(&LockCS);
++			check(!bHasShutdown);
+ 			if (PSOPrecompileCompileThreadPool.load() == nullptr)
+ 			{
+ 				check(UsePool());
+ 
+-				FQueuedThreadPool* PSOPrecompileCompileThreadPoolLocal = FPSOQueuedThreadPoolWrapper::Allocate();
+-				PSOPrecompileCompileThreadPoolLocal->Create(GetDesiredPoolSize(), 512 * 1024, (EThreadPriority)GPSOPrecompileThreadPoolThreadPriority, TEXT("PSOPrecompilePool"));
+-				PSOPrecompileCompileThreadPool = new FPSOQueuedThreadPoolWrapper(PSOPrecompileCompileThreadPoolLocal);
++				PSOInnerThreadPool = FPSOQueuedThreadPoolWrapper::Allocate();
++				PSOInnerThreadPool->Create(GetDesiredPoolSize(), 512 * 1024, (EThreadPriority)GPSOPrecompileThreadPoolThreadPriority, TEXT("PSOPrecompilePool"));
++				PSOPrecompileCompileThreadPool = new FPSOQueuedThreadPoolWrapper(PSOInnerThreadPool);
+ 			}
+ 		}
+ 		return *PSOPrecompileCompileThreadPool;
+@@ -581,11 +584,18 @@ class FPSOPrecacheThreadPool
+ 
+ 	void ShutdownThreadPool()
+ 	{
++		FScopeLock Lock(&LockCS);
+ 		FQueuedThreadPool* LocalPool = PSOPrecompileCompileThreadPool.exchange(nullptr);
++		bHasShutdown = true;
+ 		if (LocalPool != nullptr)
+ 		{
+ 			delete LocalPool;
+ 		}
++		if (PSOInnerThreadPool != nullptr)
++		{
++			delete PSOInnerThreadPool;
++			PSOInnerThreadPool = nullptr;
++		}
+ 	}
+ 
+ 	static int32 GetDesiredPoolSize()
+@@ -610,6 +620,8 @@ class FPSOPrecacheThreadPool
+ 
+ private:
+ 	FCriticalSection LockCS;
++	FQueuedThreadPool* PSOInnerThreadPool = nullptr;
++	bool bHasShutdown = false;
+ 	std::atomic<FQueuedThreadPool*> PSOPrecompileCompileThreadPool {};
+ };
+ 

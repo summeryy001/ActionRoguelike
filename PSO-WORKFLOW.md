@@ -167,3 +167,17 @@ Cook/打包成功：Saved/PSOCollection/Cooks/20261030_011759_fe7356，BuildCook
 观察到首次Stable Keys Cook在尚无SPC输入时也生成了3512字节的SM5/SM6运行时stable缓存；本地引擎IncludeComputePSODuringCook默认2（仅自动加入Niagara Compute）。已将当时Metadata运行时缓存补充快照至原CookEvidence/RuntimeCaches，待后续Dump核对数量。不能将所有stable文件都解释为来自手工SPC。录制时StartupMode=0，预编译暂停；没有用这次采集评价预缓存性能。
 
 下一步重新Cook生成包含SPC的运行时stable缓存，核对加载与完成数量，然后做同包模式对照。
+
+## 阶段 2 补充：替换为 Epic 官方线程池修复（2026-10-30）
+
+用户提供 Epic commit aa697db65d45a27da969b4b4aa850df732b2325f（2026-04-17，PSO thread pool tears down inner thread pool also.）。已确认与本地退出异常根因相同：原实现只释放 Wrapper，未销毁私有底层线程池。官方修复除释放底层池外，还加入 ShutdownThreadPool 的 LockCS 和 bHasShutdown 检查。此前“未找到官方同类修复”的调查结论由此更新。
+
+通过 epic 只读用途的 Git remote、blob:none 过滤和 depth=2 获取官方提交；公司 origin 未变。先备份并仅反向应用旧的本地所有权补丁，再在公司引擎 fix/pso-thread-pool-official 分支引入官方提交。中文移植提交 04e066ad1c0b041e397b70026e8bac9d8620ca41 保留官方作者及原 SHA；与官方 patch-id 均为 37ed9799a17db50c935fe12562d102f18ba1a7fb。仅提交 PipelineStateCache.cpp 的 15 行新增/3 行删除，其他已有引擎改动未纳入。切换分支触发既有 GitDependencies hook，报告 DefaultMaterial.uasset 与 ReplayServer/.project 本地差异，未强制覆盖。导入提交时跳过 hook，源码补丁本身无需新增依赖。
+
+AR2 Editor 与 Game Development 编译成功，129.09 秒。编译日志 Saved/PSOOfficialFix/20261030/build.log。仅替换已有 Saved/PSOValidation/Package/Windows/ActionRoguelike/Binaries/Win64/ActionRoguelike.exe，沿用既有 Cook 资源，旧 EXE 已备份至 Saved/PSOOfficialFix/20261030/previous-ActionRoguelike.exe。本轮没有重新 Cook SPC，也未推进阶段 4。新 EXE SHA256=5F96BCA8641B296CA113237431AAEC4711E805D37ABF66785B4B8B40A3E98531。此前历史批次与采集包仍代表当时构建，不应声称它们已更新为官方修复。
+
+新增 Scripts/TestOfficialPSOFix.ps1，默认仅生成运行清单，-Execute 启动回归。测试显式 Auto=1、GlobalShaders=1、Validation=2、ProxyCreationStrategy=1、Bundled=0，独立 UserDir；不清理驱动缓存，不用于冷启动性能统计。正式证据 Saved/PSOOfficialFix/20261030_161016：AutoTrace1、AutoTrace2、AutoReadyTrace、AutoNoTrace 四轮均 Valid=true，ExitCode=0、六次动作 started=1、Complete、respawnAlive=1，无 Ensure/Fatal/Assertion，实际配置匹配。前三轮生成非空 utrace；最后一轮 -trace=none 未生成 Trace。AutoReadyTrace 队列就绪 waitSeconds=0.666。这里只验证本地 Windows DX12 SM6 Development，不代表所有平台和退出时序覆盖完毕。
+
+初次试跑 Saved/PSOOfficialFix/20261030_160746：首次左键 started=0，只有五次动作成功，严格验收判失败并停止；退出码仍为 0、Trace 已生成，未观察到崩溃。保留该证据，未放宽验收条件，随后完整四轮重跑通过。该问题属于路线动作未启动现象，尚未进一步归因。
+
+公司修复分支已推送，MR：https://git.gz4399.com/4399-unreal/unrealengine-4399/-/merge_requests/1 ，目标 release-5.8.3。尚未合并目标分支。AR2 只做本地提交，未配置 remote 或推送。Client2 Game/包未更新；共享引擎的 RHI Editor DLL 已随本轮编译更新。Patches 中旧补丁作为阶段历史保留，当前应采用官方 diff，禁止叠加两套补丁。
