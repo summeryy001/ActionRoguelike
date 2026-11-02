@@ -215,3 +215,15 @@ SM6 runtime cache 116653字节，SHA256=8761495A70F5B4442F61465B48D83F1DE7E78D07
 新增RunComparison入口、RunComparisonPair执行器（基于已验证基线脚本独立扩展，旧脚本不变）、AnalyzeComparison汇总和操作指南。固定阶段4已验收包，无C++/资源/缓存改动，不重新构建。默认预览，-Execute执行四模式各3对Cold/Warm；按轮次轮换模式顺序，每对Cold立即接Warm。每次冷请求clearPSODriverCache，独立UserDir，记录Hash与驱动目录快照。清理是否成功未独立证明，源码亦不清理旧LocalLow/NVIDIA/DXCache，不宣称彻底冷缓存。
 
 对照配置包括Baseline、Auto、Bundled、Combined；Auto相关模式Validation2/ProxyCreationStrategy1，其他模式0，作为实际配置组合报告。Bundled模式核查目标库Begin/Complete；动作未启动但退出正常可重跑整对，最多3次，全部失败尝试保留并排除，其他严重异常停止。首版只做固定时间路线，AutoReady门控不用于Bundled模式，不更改包来混入就绪对照。CMD四模式预览和Parser通过，正式批次已启动，性能结果待完成后另行提交。
+
+## 阶段 5 结果：24轮同包对照完成（2026-11-02）
+
+Evidence Saved/PSOComparison/20261102_172037_5011e5，四模式各3对冷/热，24/24有效、12/12有效对、0排除/重跑。EXE/全部包指纹一致，模式实际值、技能6次、复活、退出均验收通过。未重新编译或Cook。AnalyzeComparison成功输出48组技能聚合，已验证会拒绝未完成批次。
+
+冷首次左键/黑洞/Dash窗口最大帧耗时三次中位数(ms)：Baseline106.05/95.96/85.60；Auto127.48/16.07/14.63；Bundled7.91/10.29/8.78；Combined25.80/15.82/15.17。热首次技能中位数约8.64—10.30ms，但存在个别异常：Bundled热Dash52.54ms、Baseline热重复黑洞77.91ms，不剔除或直接归因PSO。
+
+Bundled冷/热批次墙钟中位数2.87/0.32秒，Combined0.16/0.18秒；均观察到512项打开、Begin/Complete512。Combined批次完成后仍有大量Auto pending，不能解释为全局PSO准备完成。冷进程→路线开始中位数秒：Baseline1.69、Auto2.24、Bundled2.75、Combined2.27；不是完整交互启动时间。driver清理仍仅请求、未独立证明；AI/可见性非确定。
+
+新增AnalyzeComparisonTraces，实际离线解析四个中位首攻代表冷样本（Baseline2/Auto2/Bundled3/Combined3），Insights退出0，导出0—15秒CPU事件。Baseline首攻近似窗口有102.71ms Graphics创建；Bundled窗口内观察Graphics创建最大0.0087ms；Auto/Combined仍有长Compute创建后台Scope。准确方法、原始路径、限制和结果见Scripts/PSO-STAGE5-REPORT.md。后台Scope不等于卡顿帧/纯CPU编译时间，不把嵌套并行SumMs当墙钟。
+
+阶段5固定时间释放对照完成。尚未新建Bundled就绪门控，不将历史阶段2 AutoReady数据混入同包结论。仅Bundled优势仅适用于已采集路线，Loki生产策略仍需结合覆盖、后台预算与门控。下一阶段整理可迁移工具和工作流，不复制AR2缓存到Client2。

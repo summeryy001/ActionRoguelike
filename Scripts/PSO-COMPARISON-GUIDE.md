@@ -24,3 +24,7 @@ call "F:\Git_Repository\summeryy001\ActionRoguelike2\Scripts\RunComparison.local
 分析器拒绝缺少任何模式/对、无效运行或包指纹不一致，输出24轮明细、48组技能窗口统计、中位数和极值，以及进程至路线开始时间、Bundled批次和慢PSO创建统计。首次/重复技能的2秒窗口最大Tick帧耗时包含所有工作；慢创建计数不是卡顿帧数；CPU并行事件耗时之和不等于墙钟时间。
 
 Insights重点对照首攻附近慢帧、PSOPrecache及驱动创建路径，Bundled事件用目标库Begin/Complete旁证。队列完成不表示全游戏覆盖。启动时间与首次技能帧耗时一起看，避免只看到技能改善而忽略前移等待。
+
+完成24轮汇总后，可用 AnalyzeComparisonTraces.ps1 -EvidencePath '本次批次目录' 自动选择每种模式中首攻最接近中位数的冷运行，并调用定制Insights导出前15秒相关CPU Scope；需关闭测试游戏，避免分析与测试争用资源。默认Insights位置可用 -InsightsExe 覆盖；首版要求路径无空格。导出包括Frame轨道，分析只挑选准确CPU Scope，不把所有CSV行当作PSO。
+
+首轮正式报告见 PSO-STAGE5-REPORT.md。AnalyzeComparison已验证会拒绝未完成批次，成功汇总24个有效运行、48组技能窗口，并核对所有包指纹一致。
