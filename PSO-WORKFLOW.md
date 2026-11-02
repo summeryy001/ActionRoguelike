@@ -209,3 +209,9 @@ SM6 runtime cache 116653字节，SHA256=8761495A70F5B4442F61465B48D83F1DE7E78D07
 时间解释：0.339780秒是本次已有驱动缓存条件下的 Begin→Complete 墙钟时间，0.073735秒是回调上报时间；均不是冷启动耗时或整个启动耗时。CPU Scope 数量只作为提交路径旁证，不等于额外独立 PSO 或驱动实际编译次数。本次直接进入 TestLevel，不验收 MainMenu Loading门控；队列完成不证明全游戏覆盖，仍可能有后续按需创建。
 
 阶段4功能闭环已完成：输入SPC→Cook生成运行时缓存→入包→Shader库/目标缓存打开→512项预编译批次完成→玩法及退出通过。项目默认 Bundled 仍关闭，仅本次脚本覆盖配置。下一步阶段5应基于这一最新包统一四种运行模式并做正式冷缓存对照，不能沿用不同包历史数据当严格同包结论。脚本通过CMD预览/执行、PowerShell Parser与git diff --check验证；AR2继续仅本地提交。
+
+## 阶段 5 工具：同包四模式固定时间释放对照（2026-11-02）
+
+新增RunComparison入口、RunComparisonPair执行器（基于已验证基线脚本独立扩展，旧脚本不变）、AnalyzeComparison汇总和操作指南。固定阶段4已验收包，无C++/资源/缓存改动，不重新构建。默认预览，-Execute执行四模式各3对Cold/Warm；按轮次轮换模式顺序，每对Cold立即接Warm。每次冷请求clearPSODriverCache，独立UserDir，记录Hash与驱动目录快照。清理是否成功未独立证明，源码亦不清理旧LocalLow/NVIDIA/DXCache，不宣称彻底冷缓存。
+
+对照配置包括Baseline、Auto、Bundled、Combined；Auto相关模式Validation2/ProxyCreationStrategy1，其他模式0，作为实际配置组合报告。Bundled模式核查目标库Begin/Complete；动作未启动但退出正常可重跑整对，最多3次，全部失败尝试保留并排除，其他严重异常停止。首版只做固定时间路线，AutoReady门控不用于Bundled模式，不更改包来混入就绪对照。CMD四模式预览和Parser通过，正式批次已启动，性能结果待完成后另行提交。
