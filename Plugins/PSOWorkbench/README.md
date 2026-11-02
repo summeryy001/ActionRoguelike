@@ -20,7 +20,7 @@
 
 任务及完整证据：项目/Saved/PSOWorkbench/Jobs。方案状态：项目/Saved/PSOWorkbench/Profiles/<方案>/state.json。路径基于uproject，不受启动编辑器的UserDir影响。
 
-Runtime模块仅在带PSOWorkbenchSession启动参数时记录Begin/Complete和退出摘要，并响应stop.request进行保存、停止Trace与正常退出。它不增加正常游戏Loading门控，也不实现“未就绪自动隐藏”。
+Runtime模块在非Shipping运行中观察Begin/Complete以支持诊断面板；仅带PSOWorkbenchSession启动参数时写退出摘要和响应stop.request进行保存、停止Trace与正常退出。它不增加正常游戏Loading门控，也不实现“未就绪自动隐藏”。
 
 缓存组当前用于输入命名和来源记录，所有匹配SPC仍按引擎默认规则合并。按场景/玩家进度过滤、Chunk/UsageMask、CDN挂载和Runtime分组调度尚未实现。补缺集合不能未经覆盖验证就当作BundledOnly的完整集合。
 
@@ -33,3 +33,11 @@ Android已保留平台选项和任务入口边界，但设备选择、部署、�
 本地UE5.8引擎已包含Epic aa697db65d45a27da969b4b4aa850df732b2325f线程池销毁修复；未修复引擎在Auto+Trace退出上有已知风险。其他引擎版本需单独验证。PowerShell后端使用UTF-8 BOM以支持Windows PowerShell5，读取请求/INI显式按UTF-8，Launch包装器保留启动错误。
 
 所有性能数据仅对当次构建/运行配置成立。驱动清理为请求，不保证完全成功；批次完成不是全局就绪或全游戏覆盖；并行CPU Scope数量和耗时之和不是独立PSO数量或墙钟时间。
+
+## 运行时 PSO 面板
+
+Development/PIE 中默认显示简版，Ctrl+F7 循环“简版 → 详细版 → 隐藏 → 简版”，主菜单和游戏内均适用。PIE 必须让游戏视口获得键盘焦点，避免在编辑器面板打字时误触发；不占用 F9。控制台 PSOWB.Overlay 0/1/2 可直接设置，PSOWB.CycleOverlay 或旧 PSO.ToggleStartupCheck 可循环。AR2 旧面板已停止绘制，避免重叠。
+
+简版读取实际 CVar、自动预缓存支持状态、Bundled 开关与已观察批次、引擎待处理数；详细版补充 Proxy 设置、批次墙钟和按需创建/慢创建累计统计。关闭、没有观察到批次、编译中、完成各自独立；processed 只在完成事件更新，不伪造连续百分比。-1 表示该配置不可用。所有数字为进程级，PIE 继承 Editor 历史。
+
+显示快捷键不改变 PSO 策略，也不清理缓存。需要比较关闭/自动/Bundled/Combined 时，应在工作台选择模式后启动新进程；已创建 PSO 不会因运行中关开关而撤销。Hit/Miss/TooLate 由引擎 stat PSOPrecache 查看，需要支持的 Validation 配置；未开启采样时的0不是无漏项证明。面板不拦截资源加载，不实现未就绪隐藏；保留的 AR 主菜单绿色编译提示属于原项目 Blueprint，不是此插件面板。

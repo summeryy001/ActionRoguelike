@@ -293,3 +293,14 @@ UI 面板曾实际打开；更新后的图标、路径修复和完整按钮点�
 Cook 合并去重后602项（221 Graphics/381 Compute），数量与原覆盖集合相同，不能宣称覆盖增长。采集包和 Bundled 包 Game EXE SHA256 均为7D11294FB7C26AAFE7FCB68D8BE5BBBBC97011D2C9A7BFA9CA37E16FC7A5B2F8。BundledOnly 验收 queued=processed=602、complete=true、墙钟约0.348秒，6动作及正常退出检查通过。Insights 导出前15秒2206条相关 CPU Scope，Scope数不等于PSO数。此轮驱动清理关闭，Editor保持打开，仅用于功能验收，不是冷启动性能对照。
 
 配置应用/恢复与手动结束已在前轮后端协议验证，本轮未重复点击这三个入口；不将其记为逐按钮 UI 验收。首版 Windows 主流程现已实际通过 UI 跑通，Android、运行时分阶段加载及其他 README 中的限制仍不变。Client2 未修改，无远端推送。
+## 阶段6：运行时 PSO 面板与快捷键（2026-11-03）
+
+将诊断面板移入 PSOWorkbenchRuntime，非 Shipping 默认简版，Ctrl+F7 循环简版/详细版/隐藏，Console PSOWB.Overlay 0/1/2 可指定模式，PSOWB.CycleOverlay 可循环。Slate 输入预处理支持独立包主菜单；PIE 仅游戏视口拥有焦点时处理。AR2 原 PSOStartupOverlay 停止重复绘制，保留旧命令 PSO.ToggleStartupCheck 转发。原 Ctrl+F8 性能显示和 F9 演示未改动。
+
+简版读取实际 CVar、PipelineStateCache::IsPSOPrecachingEnabled、批次 Begin/Complete 与引擎待处理数，区分 Disabled/No observed batch/Running/Complete；详细版补充 Proxy/StartupMode、批次墙钟、进程级按需创建和慢创建计数。processed 只在 Complete 更新，不假造实时完成进度。Hit/Miss/TooLate 仍由 stat PSOPrecache 提供，要求 Validation 支持；未额外实现一套虚构覆盖计数。快捷键只改显示模式，不改 PSO 开关、不清驱动缓存、不阻塞加载。观察器在非 Shipping 普通运行也启用，文件输出/stop.request 仍只在有 Session 参数时生效。
+
+Game 首编暴露 IInputProcessor::Tick 纯虚函数，修复；后续 Selected switches 文本漏括号编译失败，修复。最终 Editor/Game 构建 Saved/workbench-overlay-all-build.log 成功，Bundled 构建 Saved/PSOWorkbench/Jobs/20261103_OverlayFinalBuild/result.json success=true。缓存 CVar 指针以避免面板逐帧查找带来的警告；原 Blueprint 绿色提示调用旧 PSOStartupDiagnostics 仍可能有相同查询警告，未将其归因于新面板。
+
+Computer Use 已在 PIE MainMenu_Entry 实际完成 Ctrl+F7 模式2/0/1循环，画面和 Saved/OverlayEditor/Saved/Logs/ActionRoguelike.log 均可核对。本机 PIE 显示 Auto CVar=1，但接口返回 OFF/unsupported，正确区分配置与引擎实际状态；Validation=-1 表示该 CVar 不可用。独立最终包启动画面确认 Auto=1 supported/enabled、Bundled=0、Validation=2，面板存在。最终包的按键交互被 Windows 防火墙弹窗遮挡，已请求用户手动处理；未声称 EXE 按键循环已验收。没有代操作安全权限，也没有清理驱动缓存。
+
+README 记录用法及边界。PIE 数字属于整个 Editor 进程，不能作为游戏独立冷启动证据。原项目绿色编译提示是独立 Blueprint 显示，Ctrl+F7 不会隐藏该旧提示。Client2 与原 AR 未修改。当前变更仅本地提交。
