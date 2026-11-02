@@ -304,3 +304,22 @@ Game 首编暴露 IInputProcessor::Tick 纯虚函数，修复；后续 Selected 
 Computer Use 已在 PIE MainMenu_Entry 实际完成 Ctrl+F7 模式2/0/1循环，画面和 Saved/OverlayEditor/Saved/Logs/ActionRoguelike.log 均可核对。本机 PIE 显示 Auto CVar=1，但接口返回 OFF/unsupported，正确区分配置与引擎实际状态；Validation=-1 表示该 CVar 不可用。独立最终包启动画面确认 Auto=1 supported/enabled、Bundled=0、Validation=2，面板存在。最终包的按键交互被 Windows 防火墙弹窗遮挡，已请求用户手动处理；未声称 EXE 按键循环已验收。没有代操作安全权限，也没有清理驱动缓存。
 
 README 记录用法及边界。PIE 数字属于整个 Editor 进程，不能作为游戏独立冷启动证据。原项目绿色编译提示是独立 Blueprint 显示，Ctrl+F7 不会隐藏该旧提示。Client2 与原 AR 未修改。当前变更仅本地提交。
+## AR2 提交审查与 Client2 迁移计划（2026-11-03）
+
+审查时 AR2 工作区干净且无 remote。6138b11 已提交插件首版，6b4425a 已提交 UI 主流程验收及示例方案/SPC，6ccda23 已提交运行时面板。源码、插件描述、后端脚本、使用文档和配置样例适合继续本地维护；示例 SPC 是有来源的 AR2 打包输入，可留 AR2，不得迁移为 Loki 的缓存。Saved、Cook/Stage、EXE/DLL、SHK、原始录制、驱动缓存、Trace 和本机路径配置继续只留本地。运行时面板 PIE 三档已通过，但最终独立包按键循环仍有防火墙弹窗阻挡的验证缺项，不能提升为全部入口已验收。
+
+迁移仅计划，尚未写入 Client2。目标 F:/Git_Repository/4399-unreal/LokiClient2/Loki/Loki.uproject，Game=Loki，Editor=LokiEditor；Client2 启动脚本指向源码引擎，EngineAssociation 字符串不能代替运行引擎检查。同套源码引擎 HEAD=077f17da50，含官方线程池销毁修复；当前 RHI 头具有 GetPSORuntimeCreationStats（Vendor import 中已存在），但其他安装版/Agent 引擎须单独核验。Client2 现有 DefaultInput.ini、StartEditor.bat、Typing 及 PerformanceOverlay 等未提交改动全部保留，不纳入迁移提交。
+
+迁移前先在 AR2 收敛：将强制 ?listen、NoSteam、PSOValidation 动作日志正则、固定15秒分析窗口改为方案参数/项目适配；将 AR2 默认地图/路线从通用插件构造函数移到工程方案。增加构建前项目准备接口，接 Loki TypeScript/登录配置生成和现有正式打包流程。补齐产物依赖身份及陈旧状态：采集包变化使旧采集/转换失效；新记录使转换待更新；安装输入变化使 Bundled 待重建；新包/运行配置变化使验收和分析待更新。不能仅凭磁盘存在或历史成功指针显示当前步骤完成。Runtime 需从 Server Target 排除，面板不进入 Shipping 正常展示；检查 Ctrl+F7 与 Loki 输入/GM/性能快捷键冲突。
+
+第一批迁移：只接插件到 Loki/Plugins/PSOWorkbench，启用菜单、配置检查、运行时面板，独立 Windows Development 方案；不替换默认地图、Experience、GameMode、角色或全局默认 PSO 策略。不复制 AR2 SPC/SHK/rec/cache/状态文件。不直接 Git cherry-pick AR2 历史到 Client2。
+
+第二批迁移：接入 BuildClientRuntime.ps1 和项目的 Tools 构建准备/Stage 校验，验证 Runtime/JavaScript、Puerts 基础库及 Content/Config。Windows DX12 SM6 与当前客户端配置一致，但 CookMaps 不能限制 DirectoriesToAlwaysCook：现有默认配置包含大量内容目录和地图，正式 Windows 配置另有开发地图排除。应通过独立 PSO 开发包方案确定 Cook 范围及覆盖，不静默改共享 DefaultGame.ini；不把开发验证包当正式发行包。
+
+第三批迁移：以原测试地图 /Game/Scenes/RailRuinsTowerCaveLOD1/L_RailRuinsTowerCaveLOD1 为首选候选，先核对当前 Experience/角色/技能入口，再定义固定路线与 A/B/C 首次操作标记。测试逻辑放 LokiClient/Development/PSO，通用工具留插件。先手动采集闭环，再接项目原生自动路线及明确的成功/失败标记。纯本地测试不强制 listen，不依赖 AR2 战斗/复活代码。
+
+第四批迁移：在 Loki 自身生成 SHK/rec/SPC/runtime cache，验证 Cook 输入消费、Shader 库可用、包内缓存、Begin/Complete 和 Hash 链。单一匹配包支持关闭/Auto/Bundled/Combined，采集支持完整/补缺/隔离；需要门控的测试另记等待就绪，冷请求/热启动各自统计，不混同。首轮选择小场景闭环后再扩展。
+
+第五批迁移：补固定路线、运行统计与 UI 失效状态验证，完成相同包对照和同事使用验收后再接正式发布。分阶段缓存调度、玩家进度选择、CDN/Chunk/UsageMask 与 Android 继续作为后续阶段，首版缓存组命名不宣称具备这些功能。
+
+迁移正式长期文档归 Tools/Documents/LokiClient，更新时运行 Tools/Documents/build-index.ps1；当前此段仅为 AR2 演练交接记录。下一步优先完成 AR2 通用性和产物依赖收敛，再进行 Client2 最小接入；不先在 Client2 全局启用 PSO，也不夹带其既有未提交改动。
