@@ -197,3 +197,15 @@ AR2 Editor 与 Game Development 编译成功，129.09 秒。编译日志 Saved/P
 SM6 runtime cache 116653字节，SHA256=8761495A70F5B4442F61465B48D83F1DE7E78D075B8F258A7A4482ADFD5BB69F，已核对进入归档 PAK；SM5 无手工 SPC，本次仍由 Cook 自动写出29个 Compute PSO。这也为之前约4KB的自动生成缓存提供进一步证据。包内 EXE SHA256=5F96BCA8641B296CA113237431AAEC4711E805D37ABF66785B4B8B40A3E98531，使用已回归的官方线程池修复 Game。
 
 当前只完成阶段4的构建部分。项目默认 Bundled 仍关闭，脚本未启动游戏，未观察 cache open/begin/complete，也未做冷缓存性能对照；后续运行验收需要显式传入 Bundled/StartupMode，并区分 Auto 混合队列与真正的随包事件。Loki 后续工具需保留采集模式（完整/补缺/隔离）、按场景/资源包分组、随包或CDN分发及分阶段预编译的配置维度；本脚本首版仅针对 AR2 Windows SM6 构建验证。
+
+## 阶段 4B：仅 Bundled 运行与 Insights 验收（2026-11-02）
+
+新增 ValidateBundled.local.bat/ps1：读取已通过的构建清单，验证 EXE、缓存证据及运行前后包容器一致，独立 UserDir，显式 Auto=0、GlobalShaders=0、Validation=0、ProxyCreationStrategy=0、ShaderPipelineCache.Enabled=1、StartupMode=1、SaveUserCache=0。默认预览，-Execute 才运行；不清理驱动缓存。本次无需改 C++、重新编译或 Cook。
+
+实际证据 Saved/PSOBundled/Runs/20261102_162509_e0bf49，使用阶段4A构建 20261030_175525_8214c7。Global/ActionRoguelike 共享 Shader 库均加载；打开目标 ActionRoguelike_PCD3D_SM6.stable.upipelinecache，512 entries，GUID=9C734A07464D0E082F25489C37E48254；Begin queued=512，Complete processed=512，wallSeconds=0.339780、submissionSeconds=0.073735。七项运行配置实际值核对正确。六次技能 started=1、Complete、respawnAlive=1、ExitCode=0，无 Ensure/Fatal/Assertion，Trace与CSV存在，包容器和EXE运行前后未变，Valid=true。
+
+新增 AnalyzeBundledTrace.ps1，调用定制 UnrealInsights -NoUI -AutoQuit，通过 ExecOnAnalysisCompleteCmd 导出前10秒 Precompile 事件并精确筛选 CPU Scope。实际分析退出码0：FShaderPipelineCache::PrecompileGraphics=171次、PrecompileCompute=341次，与构建分类及512项批次一致；trace-analysis.json Valid=true。保留导出CSV、命令和日志。最初试导出 *PSO* 的 pso-events.csv 也保留在证据目录，其中包含 Frame 轨道及其他事件，不把其全部行数作为 PSO 数；正式分析使用 *Precompile* 并按准确名称筛选。
+
+时间解释：0.339780秒是本次已有驱动缓存条件下的 Begin→Complete 墙钟时间，0.073735秒是回调上报时间；均不是冷启动耗时或整个启动耗时。CPU Scope 数量只作为提交路径旁证，不等于额外独立 PSO 或驱动实际编译次数。本次直接进入 TestLevel，不验收 MainMenu Loading门控；队列完成不证明全游戏覆盖，仍可能有后续按需创建。
+
+阶段4功能闭环已完成：输入SPC→Cook生成运行时缓存→入包→Shader库/目标缓存打开→512项预编译批次完成→玩法及退出通过。项目默认 Bundled 仍关闭，仅本次脚本覆盖配置。下一步阶段5应基于这一最新包统一四种运行模式并做正式冷缓存对照，不能沿用不同包历史数据当严格同包结论。脚本通过CMD预览/执行、PowerShell Parser与git diff --check验证；AR2继续仅本地提交。
