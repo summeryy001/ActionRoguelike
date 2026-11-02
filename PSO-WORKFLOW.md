@@ -282,3 +282,14 @@ Windows DX12/SM6 Development 后台协议验收 Saved/PSOWorkbench/Smoke/2026110
 UI 面板曾实际打开；更新后的图标、路径修复和完整按钮点击验收尚待完成。当前 Editor 占用旧 DLL，Computer Use 输入返回 GetCursorPos failed: 拒绝访问 (0x80070005)，已请求恢复桌面交互或正常关闭 AR2。没有强制结束 Editor，也没有将后台协议通过等同 UI 全通过。
 
 首版限制：Android 仅预留且禁用执行；缓存组仅命名和来源管理，未实现 Runtime 分阶段选择/CDN；未验收其他 RHI、SM5、Shipping 和 Blueprint-only。安装/任务证据不等于全游戏 PSO 覆盖。插件使用说明见 Plugins/PSOWorkbench/README.md。Client2 未改动，本阶段仅本地 Git。
+## 阶段6：Windows UI 主流程验收完成（2026-11-03）
+
+桌面恢复后使用 Computer Use 实际操作 UE Editor。Editor/Game 重新编译成功（Saved/workbench-editor-refresh.log），新 DLL 已载入。工具 → 渲染工作流 → PSO 工作台及页签均显示 Profiler.Tab 图标；通过界面创建并保存 WorkbenchUI 方案。任务期间控件禁用，结束后恢复并显示成功、日志和产物摘要。Android 选择后任务禁用，再从已保存方案重载恢复 Windows；工作台已最大化留在桌面。
+
+以下步骤均通过 UI 点击发起，不是后台回放：Preflight 20261103_004126_03CC28；BuildCollector 20261103_004206_2E5162；Capture 20261103_004357_E0C071；Convert 20261103_004614_C5FA99；Install 20261103_004711_9FE5B7；BuildBundled 20261103_004746_3892C2；Validate 20261103_005011_1559FA；Analyze 20261103_005255_CFE517。所有任务 result.success=true。原始证据保存在 Saved/PSOWorkbench/Jobs，方案状态在 Saved/PSOWorkbench/Profiles/WorkbenchUI/state.json。
+
+本次转换681项 Stable 组合、49880字节，SPC SHA256=D668FAC6C654D54512DB7345AF8127E58FC1819B8C71F8F973A78CC3599763B5。刻意保留并版本化工作台生成输入 Build/Windows/PipelineCaches/PSOWB_WorkbenchUI_Startup_ActionRoguelike_PCD3D_SM6.spc，作为 UI 工作流产物示例；原两份输入保留。配套 Config/PSOWorkbench/Profiles/WorkbenchUI.json 不含 Engine/Insights 本机绝对路径。该 SPC 只能用于匹配 AR2 Shader 构建，移植工作台不复制此缓存。
+
+Cook 合并去重后602项（221 Graphics/381 Compute），数量与原覆盖集合相同，不能宣称覆盖增长。采集包和 Bundled 包 Game EXE SHA256 均为7D11294FB7C26AAFE7FCB68D8BE5BBBBC97011D2C9A7BFA9CA37E16FC7A5B2F8。BundledOnly 验收 queued=processed=602、complete=true、墙钟约0.348秒，6动作及正常退出检查通过。Insights 导出前15秒2206条相关 CPU Scope，Scope数不等于PSO数。此轮驱动清理关闭，Editor保持打开，仅用于功能验收，不是冷启动性能对照。
+
+配置应用/恢复与手动结束已在前轮后端协议验证，本轮未重复点击这三个入口；不将其记为逐按钮 UI 验收。首版 Windows 主流程现已实际通过 UI 跑通，Android、运行时分阶段加载及其他 README 中的限制仍不变。Client2 未修改，无远端推送。
