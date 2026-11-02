@@ -29,6 +29,10 @@
 	],
 	"Plugins": [
 		{
+			"Name": "PSOWorkbench",
+			"Enabled": true
+		},
+		{
 			"Name": "PropertyBindingUtils",
 			"Enabled": true
 		},

@@ -270,3 +270,15 @@ Control构建20261102_195322_37eaf6，原SPC在新资源范围下生成541项（
 建议组织共享基础集合与阶段增量集合，采集时保留场景、玩法、阶段、平台/RHI/Shader格式和构建来源。工作流可产出单一合并缓存，也可产出阶段缓存或适配引擎接口的过滤集合；不能假设每个逻辑分组一定等于一个可同时打开的独立文件，具体文件/Chunk/UsageMask方案需在本地引擎接口上验证。
 
 项目依据当前进度选择必需集合，明确优先级、进入前等待条件、后台预算及暂停/恢复时机，并与Shader代码库可用性、资源分包/CDN挂载和版本匹配关联。记录各组完成事件及漏项，未就绪内容由项目决定等待、延迟展示或允许按需创建。采集顺序不保证运行时编译顺序，必须通过实际分组和调度实现。以上为阶段6/Loki接入需求，尚未实现运行时分组加载能力。
+
+## 阶段6：PSO 工作台首版与后台验收（2026-11-02）
+
+新增独立 PSOWorkbench 插件，入口为工具 → 渲染工作流 → PSO 工作台，菜单和页签选择 UE 内置 Profiler.Tab 图标。Editor UI 提供方案保存/加载、平台与运行策略、配置检查/备份应用/恢复、采集包构建、手动或自动采集、expand、安装 SPC、Bundled 包构建、运行验收及 Insights 分析。后端随插件携带；Game-only 构建允许 Editor 保持打开。Runtime 仅在显式会话参数下记录批次和响应正常停止请求。
+
+Windows DX12/SM6 Development 后台协议验收 Saved/PSOWorkbench/Smoke/20261102_second：Preflight、ApplyConfig、BuildCollector、Capture、Convert、Install、BuildBundled、Validate、Analyze 九步骤全部通过；验收目标批次 queued=602、processed=602、complete=true，约0.367秒。未清理驱动缓存，该耗时不是冷启动性能结论。手动采集 stop.request 保存并正常退出通过；Android 和缺失 Cook 地图两项负例按预期拒绝。测试安装的 WorkbenchSmoke SPC 已移到该证据目录保留，不留在正式打包输入；原有两份 SPC 未改动。
+
+首次后台试跑因相对 Request 路径导致归档定位失败，保留失败证据；已将 Request 规范化为绝对路径，第二轮重新完整验证。初次 UI 任务暴露 Windows PowerShell5 无 BOM 解析中文脚本失败，已修复 UTF-8 BOM 并增加 Launch.ps1 错误日志。UI 产物路径以 uproject 为基准，避免 UserDir 重定向。最后源码经 RunUAT BuildPlugin 独立 HostProject 构建成功，日志 Saved/workbench-plugin-host.log，不依赖 AR2 游戏模块。
+
+UI 面板曾实际打开；更新后的图标、路径修复和完整按钮点击验收尚待完成。当前 Editor 占用旧 DLL，Computer Use 输入返回 GetCursorPos failed: 拒绝访问 (0x80070005)，已请求恢复桌面交互或正常关闭 AR2。没有强制结束 Editor，也没有将后台协议通过等同 UI 全通过。
+
+首版限制：Android 仅预留且禁用执行；缓存组仅命名和来源管理，未实现 Runtime 分阶段选择/CDN；未验收其他 RHI、SM5、Shipping 和 Blueprint-only。安装/任务证据不等于全游戏 PSO 覆盖。插件使用说明见 Plugins/PSOWorkbench/README.md。Client2 未改动，本阶段仅本地 Git。

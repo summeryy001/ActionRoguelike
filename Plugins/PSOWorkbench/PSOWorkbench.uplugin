@@ -1,0 +1,14 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "PSO 工作台",
+  "Description": "PSO capture, build and validation workflow. Windows first; Android extension reserved.",
+  "Category": "Rendering",
+  "CanContainContent": false,
+  "EnabledByDefault": true,
+  "Modules": [
+    { "Name": "PSOWorkbenchRuntime", "Type": "Runtime", "LoadingPhase": "PostConfigInit" },
+    { "Name": "PSOWorkbenchEditor", "Type": "EditorNoCommandlet", "LoadingPhase": "Default" }
+  ]
+}
