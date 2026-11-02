@@ -17,6 +17,11 @@
 #include "SharedGameplayTags.h"
 #include "PipelineStateCache.h"
 #include "ShaderPipelineCache.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
+#include "Core/RogueGameplayInterface.h"
 
 ARoguePSOValidation::ARoguePSOValidation()
 {
@@ -27,6 +32,7 @@ void ARoguePSOValidation::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
     const double Now = FPlatformTime::Seconds();
+	const bool bCoverage = FParse::Param(FCommandLine::Get(), TEXT("PSOCoverage"));
     if (MapReadyTime == 0)
     {
         MapReadyTime = Now;
@@ -36,7 +42,7 @@ void ARoguePSOValidation::Tick(float DeltaSeconds)
 
 	APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
 	// Keep natural AI damage from interrupting the skill route. Death is tested explicitly.
-	if (Player && Step < 9)
+	if (Player && (Step < 9 || bCoverage))
 	{
 		URogueActionComponent* Actions = URogueActionComponent::GetActionComponent(Player);
 		if (Actions && URogueGameplayFunctionLibrary::IsAlive(Player))
@@ -74,10 +80,62 @@ void ARoguePSOValidation::Tick(float DeltaSeconds)
         UE_LOG(LogTemp, Display, TEXT("PSOValidation gateComplete enabled=%d waitSeconds=%.3f pendingAuto=%u peakPending=%u asyncLoading=%d"), bWait, WaitSeconds, Pending, PeakPending, IsAsyncLoading());
     }
     const double Elapsed = Now - StartTime;
+	if (bCoverage && Player && Elapsed >= 52.0)
+	{
+		const int32 NextCoverageStep = FMath::FloorToInt((Elapsed - 52.0) / 4.0);
+		if (NextCoverageStep > CoverageStep && NextCoverageStep < 20)
+		{
+			CoverageStep = NextCoverageStep;
+			static const TCHAR* Effects[] = {
+				TEXT("NS_Treasure_Burst"), TEXT("NS_Skill_Leap_Base_Velocity_Impact"),
+				TEXT("NS_Portal_Teleport_Exit"), TEXT("NS_Portal_Teleport_Enter"),
+				TEXT("NS_Portal_Entrance_Close"), TEXT("NS_Portal_Cast"),
+				TEXT("NS_Gideon_Ultimate"), TEXT("NS_Gideon_TravelMode_Hands"),
+				TEXT("NS_Gideon_Primary_Projectile"), TEXT("NS_Gideon_Primary_MuzzleFlash"),
+				TEXT("NS_Gideon_Primary_HitWorld"), TEXT("NS_Gideon_Burden_Projectile"),
+				TEXT("NS_Gideon_Burden_MuzzleFlash"), TEXT("NS_Flames"), TEXT("NS_Explosion"),
+				TEXT("NS_DroppedBuff_Health_Light"), TEXT("NS_DroppedBuff_HealthRegen"),
+				TEXT("NS_DroppedBuff_Gold"), TEXT("NS_CarriedBuff_Received_Black"), TEXT("NS_Burning")};
+			const FVector Origin = Player->GetActorLocation();
+			const FString EffectPath = FString::Printf(TEXT("/Game/tharlevfx_tutorials/CharacterFX/ParagonSourceAssets/Niagara/%s.%s"), Effects[CoverageStep], Effects[CoverageStep]);
+			UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *EffectPath);
+			const bool bSpawned = System && UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, System, Origin + FVector(0, 0, 130)) != nullptr;
+			CoverageEffectsLoaded += bSpawned ? 1 : 0;
+			// A view-only camera leaves gameplay/physics in place, changing distance and angle.
+			ACameraActor* Camera = GetWorld()->SpawnActor<ACameraActor>();
+			if (Camera && Player->GetController())
+			{
+				const double Angle = CoverageStep * PI / 4.0;
+				const double Distance = CoverageStep % 2 ? 900.0 : 350.0;
+				Camera->SetActorLocation(Origin + FVector(FMath::Cos(Angle)*Distance, FMath::Sin(Angle)*Distance, 250));
+				Camera->SetActorRotation((Origin + FVector(0,0,130) - Camera->GetActorLocation()).Rotation());
+				CastChecked<APlayerController>(Player->GetController())->SetViewTarget(Camera);
+				Camera->SetLifeSpan(12.0f);
+			}
+			if (CoverageStep < 7)
+			{
+				static const TCHAR* Props[] = {TEXT("BonfireBP"), TEXT("LeverBP"), TEXT("TreasureChest"), TEXT("ExplosiveBarrel_Assignment"), TEXT("Powerup_HealthPotion"), TEXT("SineWaveBlueprint"), TEXT("TargetDummyBP")};
+				const FString ClassPath = FString::Printf(TEXT("/Game/ActionRoguelike/%s.%s_C"), Props[CoverageStep], Props[CoverageStep]);
+				UClass* PropClass = LoadClass<AActor>(nullptr, *ClassPath);
+				FActorSpawnParameters SpawnParams;
+				SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+				AActor* Prop = PropClass ? GetWorld()->SpawnActor<AActor>(PropClass, Origin+FVector(120,0,100), FRotator::ZeroRotator, SpawnParams) : nullptr;
+				if (Prop) Prop->SetLifeSpan(12.0f);
+				if (Prop && Player->GetController() && Prop->Implements<URogueGameplayInterface>())
+				{
+					IRogueGameplayInterface::Execute_Interact(Prop, Player->GetController());
+					UE_LOG(LogTemp, Display, TEXT("PSOCoverage interacted=%s"), *ClassPath);
+				}
+				UE_LOG(LogTemp, Display, TEXT("PSOCoverage prop=%s spawned=%d"), *ClassPath, Prop != nullptr);
+			}
+			TRACE_BOOKMARK(TEXT("PSOCoverage effect=%s spawned=%d"), Effects[CoverageStep], bSpawned);
+			UE_LOG(LogTemp, Display, TEXT("PSOCoverage step=%d effect=%s spawned=%d"), CoverageStep, *EffectPath, bSpawned);
+		}
+	}
     FrameCSV += FString::Printf(TEXT("%.6f,%.4f,%d\n"), Elapsed, DeltaSeconds * 1000.0, Step);
 
 	const double Times[] = {5, 10, 16, 23, 28, 34, 38, 40, 44, 50, 56};
-	if (Step >= UE_ARRAY_COUNT(Times) || Elapsed < Times[Step])
+	if (Step >= UE_ARRAY_COUNT(Times) || Elapsed < Times[Step] || (bCoverage && Step == 10 && Elapsed < 136.0))
 	{
 		return;
 	}
@@ -138,6 +196,11 @@ void ARoguePSOValidation::Tick(float DeltaSeconds)
 	}
 	else if (Step == 10)
 	{
+		if (bCoverage)
+		{
+			UE_LOG(LogTemp, Display, TEXT("PSOCoverage complete effects=%d expected=20"), CoverageEffectsLoaded);
+			if (CoverageEffectsLoaded != 20) { FPlatformMisc::RequestExitWithStatus(false, 3); return; }
+		}
 		FString Output;
 		FParse::Value(FCommandLine::Get(), TEXT("PSOValidationOutput="), Output);
 		if (!Output.IsEmpty())

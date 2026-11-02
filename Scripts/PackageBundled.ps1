@@ -39,11 +39,11 @@ if(!$Execute){Write-Output "Prepared only: $Evidence";Write-Output 'Use -Execute
 if(@(Get-Process -ErrorAction SilentlyContinue | Where-Object {$_.ProcessName -match '^(UnrealEditor|ActionRoguelike|Loki)(-|$)'}).Count){throw 'Close UE editors/games before Cook/package.'}
 New-Item "$Evidence/Inputs" -ItemType Directory | Out-Null
 # Keep relative paths so identically named SPC files in subdirectories remain distinct.
-foreach($Input in $Inputs){
-    $Relative=$Input.FullName.Substring((Resolve-Path $InputDir).Path.Length+1)
+foreach($SpcInput in $Inputs){
+    $Relative=$SpcInput.FullName.Substring((Resolve-Path $InputDir).Path.Length+1)
     $Destination=Join-Path "$Evidence/Inputs" $Relative
     New-Item (Split-Path $Destination) -ItemType Directory -Force | Out-Null
-    Copy-Item -LiteralPath $Input.FullName -Destination $Destination
+    Copy-Item -LiteralPath $SpcInput.FullName -Destination $Destination
 }
 $Start=Get-Date
 $Acceptance=[ordered]@{Valid=$false;RuntimeVerified=$false;Evidence=$Evidence;ValidationTarget=$Format}
@@ -57,7 +57,7 @@ try {
     $Log=Get-Content "$Evidence/cook.log" -Raw
     $LoadLines=@($Log -split '\r?\n' | Where-Object {$_ -match 'Loaded \d+ stable PSOs from .*PCD3D_SM6\.spc'})
     if(!$LoadLines.Count){throw 'No log evidence that SM6 SPC was consumed'}
-    foreach($Input in $Inputs){if(!@($LoadLines | Where-Object {$_.Contains($Input.Name)}).Count){throw "SPC not observed in build log: $($Input.Name)"}}
+    foreach($SpcInput in $Inputs){if(!@($LoadLines | Where-Object {$_.Contains($SpcInput.Name)}).Count){throw "SPC not observed in build log: $($SpcInput.Name)"}}
     $LoadedCounts=@($LoadLines | ForEach-Object {
         $Match=[regex]::Match($_,'Loaded (\d+) stable PSOs from (.*)\. (\d+) PSOs rejected, (\d+) PSOs merged')
         if(!$Match.Success){throw 'Unrecognized stable PSO load statistics'}

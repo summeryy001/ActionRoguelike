@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param([switch]$Execute, [Parameter(Mandatory=$true)][ValidateSet('Baseline','Auto','Bundled','Combined')][string]$Profile,
-    [Parameter(Mandatory=$true)][string]$PackageRoot,[Parameter(Mandatory=$true)][string]$OutputRoot)
+    [Parameter(Mandatory=$true)][string]$PackageRoot,[Parameter(Mandatory=$true)][string]$OutputRoot,[switch]$ColdOnly,[switch]$Coverage)
 $ErrorActionPreference='Stop'
 function Get-FileHash([string]$Path){
     $Stream=[IO.File]::OpenRead($Path);$Hasher=[Security.Cryptography.SHA256]::Create()
@@ -46,7 +46,7 @@ $Overrides=($Settings.Keys | ForEach-Object {'[SystemSettings]:{0}={1}' -f $_,$S
 $Queries=@('t.IdleWhenNotForeground 0','t.MaxFPS 0','r.VSync 0','pso.StartupCheck 0')+@($Settings.Keys)
 $Results=@()
 for($pair=1;$pair -le $Pairs;$pair++) {
-    foreach($mode in @('Cold','Warm')) {
+    foreach($mode in $(if($ColdOnly){@('Cold')}else{@('Cold','Warm')})) {
         $Run=Join-Path $Batch ('{0:D2}_{1}' -f $pair,$mode)
         New-Item $Run -ItemType Directory | Out-Null
         $ArgsList=@('/Game/ActionRoguelike/Maps/TestLevel?listen','-dx12','-sm6','-windowed','-ResX=1280','-ResY=720','-NoSteam','-NoVSync','-unattended',
@@ -55,6 +55,7 @@ for($pair=1;$pair -le $Pairs;$pair++) {
             ('-abslog="{0}/game.log"' -f $Run), ('-tracefile="{0}/capture.utrace"' -f $Run),
             ('-ini:Engine:'+ $Overrides), ('-ExecCmds="'+($Queries -join ',')+'"'))
         if($Profile -eq 'AutoReady') {$ArgsList+='-PSOValidationWaitForReady'}
+        if($Coverage){$ArgsList+='-PSOCoverage'}
         if($mode -eq 'Cold') {$ArgsList+='-clearPSODriverCache'}
         @{Profile=$Profile;Mode=$mode;Pair=$pair;Execute=[bool]$Execute;Executable=$Exe;Arguments=$ArgsList;Settings=$Settings;
           Revision=(& git -C $Root rev-parse HEAD);WorkingTree=@(& git -C $Root status --short);
@@ -100,6 +101,7 @@ for($pair=1;$pair -le $Pairs;$pair++) {
         $Trace=Get-Item "$Run/capture.utrace" -ErrorAction SilentlyContinue
         $Valid=$Process.ExitCode -eq 0 -and $Successful -eq 6 -and $Log.Contains('label=Complete') -and $Log.Contains('respawnAlive=1') -and
             !$Log.Contains('Ensure condition failed') -and !$Log.Contains('Fatal error:') -and !$Log.Contains('Assertion failed:') -and $SettingsOK -and $GateOK -and $BundledOK -and $Trace -and $Trace.Length -gt 0 -and (Test-Path "$Run/frames.csv")
+        if($Coverage){$Valid=$Valid -and $Log.Contains('PSOCoverage complete effects=20 expected=20') -and [regex]::Matches($Log,'PSOCoverage prop=\S+ spawned=1').Count -eq 7}
         $Init=[regex]::Match($Log,'Engine is initialized\. Leaving FEngineLoop::Init\(\).*?Took ([0-9.]+)')
         $InitSeconds=if($Init.Success){[double]::Parse($Init.Groups[1].Value,[Globalization.CultureInfo]::InvariantCulture)}else{$null}
         @{Valid=[bool]$Valid;ExitCode=$Process.ExitCode;SuccessfulActions=$Successful;ActualSettings=$Actual;

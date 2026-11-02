@@ -240,3 +240,15 @@ Bundled冷/热批次墙钟中位数2.87/0.32秒，Combined0.16/0.18秒；均观�
 - 验收：按模式检查缓存打开/Begin/Complete及Auto待处理请求、准备耗时、首次技能帧耗时、Miss/TooLate与正常退出；保存配置、构建Hash、日志及Trace。随包批次完成不等于所有Auto或全游戏PSO就绪。
 
 以上属于可实现的配置化设计要求。AR2已经验证四模式可用同包启动覆盖；Loki的统一配置接口、场景分组/调度和分发接入留待后续实施，不能将需求记录解释为已完成接入。
+
+## 阶段5覆盖迭代准备（2026-11-02）
+
+用户要求在阶段6前扩大采集再对照。新增PSOCoverage opt-in模式：保持原技能路线，追加20个工程Niagara效果、7类道具、适用接口交互及相机距离/角度变化，136秒结束；目录显式纳入Cook。不是全地图/全玩法覆盖，不为达到1000制造排列。
+
+增加CollectCoverage、RunCoverageIteration、AnalyzeCoverageIteration和指南。控制两版使用同一新EXE和资源，保留原SPC，新增Coverage01 SPC由Cook合并；不直接比较旧历史包。扩展对照仅测冷请求：两版×Bundled/Combined×3次原路线，加每版一次扩展夹具诊断，共14次。默认预览，不自动删除用户文件，继承驱动清理请求的限制。
+
+先全目录Cook暴露LeverBP访问Transient ActiveGameplayTags的兼容问题。原属性无Blueprint可见标记，BlueprintReadOnly尝试仍无法传可写引用；最终BlueprintReadWrite恢复旧内容访问，Editor/Game重新构建成功。记录失败构建20261102_193820_fa07cc和194236_81483a。PackageBundled PowerShell7自动变量Input被管线覆盖造成误判，改SpcInput；194601_f9044f的Cook成功但构建验收失败，未当成功，随后重构建通过。首轮采集194826_5c4f1d记录586项但TargetDummy碰撞失败，严格验收不通过；AlwaysSpawn夹具修复后重新编译、Cook和重采。
+
+正式采集Saved/PSOCoverage/Recordings/20261102_195402_4552d5：Valid=true、Exit0、6技能、复活、20效果、7道具及包Hash通过，588条记录。转换20261102_195703_44a153：798稳定组合、50867字节、SHA256=E8F0B2FACC9DA8302C03870C5A186948C6BDC599D2EAE90450C61AE81AC202F9。已安装Build/Windows/PipelineCaches/PSO_Coverage01_ActionRoguelike_PCD3D_SM6.spc，保留原输入。
+
+Control构建20261102_195322_37eaf6，原SPC在新资源范围下生成541项（171 Graphics/370 Compute）；Expanded构建20261102_195709_b9ea1c，合并新旧输入生成602项（221 Graphics/381 Compute），均0映射拒绝。原512到541来自新增Cook资源自动Compute，并非此次跑包新增；严格迭代净增61项（50 Graphics/11 Compute）。共同EXE SHA256=45CA75EA11E8079CECAD497D2E2002848A100D43CFDE1A2E77BAA5A693BF2AC4。对照执行器已核对两版.ucas/.utoc Hash完全一致，.pak随缓存改变。预览通过，正式运行已启动，结果待完成另行提交。

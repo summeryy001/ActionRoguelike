@@ -16,6 +16,8 @@ public:
 
 private:
 	int32 Step = 0;
+	int32 CoverageStep = -1;
+	int32 CoverageEffectsLoaded = 0;
 	double StartTime = 0;
     double MapReadyTime = 0;
     double ReadySince = 0;

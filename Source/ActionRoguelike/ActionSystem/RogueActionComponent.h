@@ -25,7 +25,8 @@ class ACTIONROGUELIKE_API URogueActionComponent : public UActorComponent
 
 protected:
 
-	UPROPERTY(Transient)
+	// Legacy LeverBP passes this container to a mutable Blueprint reference pin.
+	UPROPERTY(Transient, BlueprintReadWrite, Category="Actions", meta=(AllowPrivateAccess="true"))
 	FGameplayTagContainer ActiveGameplayTags;
 
 public:
