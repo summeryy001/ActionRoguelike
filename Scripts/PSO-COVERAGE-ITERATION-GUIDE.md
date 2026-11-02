@@ -34,3 +34,5 @@
 - PackageBundled曾使用PowerShell自动变量$Input作为循环变量，PowerShell7嵌套管线导致SPC日志匹配误判。改名SpcInput，保留失败验收，不手改为成功；重新Cook/打包验证。
 
 数量以实际去重后的运行时缓存为准，不以达到1000为目标制造无关排列。后续更多地图、画质档位、角色或真正玩法分支需要各自的覆盖用例与来源标记。
+
+首轮结果见PSO-COVERAGE-ITERATION-REPORT.md。AnalyzeCoverageTraces.ps1 -EvidencePath '对照目录' 可在游戏全部结束后，用定制Insights离线导出两次夹具Probe的前155秒相关Scope；默认程序可用-InsightsExe覆盖。按首Tick近似对齐52—136秒，不把嵌套/并行Scope耗时相加，也不把Tick的400ms上限当作真实最大停顿。首版要求路径无空格。

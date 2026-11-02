@@ -252,3 +252,13 @@ Bundled冷/热批次墙钟中位数2.87/0.32秒，Combined0.16/0.18秒；均观�
 正式采集Saved/PSOCoverage/Recordings/20261102_195402_4552d5：Valid=true、Exit0、6技能、复活、20效果、7道具及包Hash通过，588条记录。转换20261102_195703_44a153：798稳定组合、50867字节、SHA256=E8F0B2FACC9DA8302C03870C5A186948C6BDC599D2EAE90450C61AE81AC202F9。已安装Build/Windows/PipelineCaches/PSO_Coverage01_ActionRoguelike_PCD3D_SM6.spc，保留原输入。
 
 Control构建20261102_195322_37eaf6，原SPC在新资源范围下生成541项（171 Graphics/370 Compute）；Expanded构建20261102_195709_b9ea1c，合并新旧输入生成602项（221 Graphics/381 Compute），均0映射拒绝。原512到541来自新增Cook资源自动Compute，并非此次跑包新增；严格迭代净增61项（50 Graphics/11 Compute）。共同EXE SHA256=45CA75EA11E8079CECAD497D2E2002848A100D43CFDE1A2E77BAA5A693BF2AC4。对照执行器已核对两版.ucas/.utoc Hash完全一致，.pak随缓存改变。预览通过，正式运行已启动，结果待完成另行提交。
+
+## 阶段5覆盖迭代01结果（2026-11-02）
+
+对照批次Saved/PSOCoverage/Comparisons/20261102_195916_3a43c4，12次原路线冷请求（两版×Bundled/Combined×3次）与2次扩展夹具Probe全部通过，无重跑。EXE和资源容器一致；额外解析PAK清单1675文件，仅SM5/SM6运行时缓存Hash不同，当前使用SM6。
+
+原路线三次中位数左键/黑洞/Dash(ms)：Control Bundled11.94/10.35/12.64，Expanded Bundled11.40/10.67/10.03；Control Combined27.28/15.89/16.74，Expanded Combined15.53/16.12/16.64。Control Combined首攻有111.46ms极值，未排除。仅Bundled批次墙钟中位数从3.75到5.70秒，进程至路线开始4.05到4.43秒；区间不同不相加。Combined批次0.19到0.17秒，不代表Auto就绪；首攻pendingAuto中位数3512到3510，数量基本未变。
+
+扩展52—136秒夹具Probe各1次：Control Tick峰值400ms/P95 9.31ms/超过50ms 12样本，Expanded23.41ms/8.47ms/0。引擎世界Delta默认可能Clamp到400ms（BaseGame.ini及WorldSettings），不能把400认作真实最长停顿。新增AnalyzeCoverageTraces实际Insights退出0：该近似窗口Graphics API创建最大217.61→1.31ms，Compute396.08→3.13ms；>50ms事件分别22/9降至0/0。单次Probe只是诊断，不是三次性能结论；有同步加载和模拟开销，Scope不等于纯编译时间。
+
+报告Scripts/PSO-COVERAGE-ITERATION-REPORT.md保留来源、原始值范围、计时定义与边界。结果支持扩大覆盖能减少新内容首次出现的长创建，同时增加前置处理；不能由此保证全游戏覆盖或线性缩短Auto队列。覆盖扩展已完成本轮迭代，阶段6尚未开始；Client2未改动，AR2只本地提交。
