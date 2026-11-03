@@ -1,19 +1,31 @@
 {
-	"profileName": "WorkbenchUI",
-	"groupName": "Startup",
-	"platform": "Windows",
-	"gameTarget": "ActionRoguelike",
-	"captureMap": "/Game/ActionRoguelike/Maps/TestLevel.TestLevel",
-	"cookMaps": [
-		"/Game/ActionRoguelike/Maps/TestLevel.TestLevel"
-	],
-	"captureStrategy": "Full",
-	"bAutomaticRoute": true,
-	"automaticArguments": "-PSOValidation",
-	"completionMarker": "label=Complete",
-	"expectedActions": 6,
-	"runtimeMode": "Bundled",
-	"bClearDriverCache": false,
-	"bBackground": false,
-	"backgroundBudgetMs": 2
+  "profileName": "WorkbenchUI",
+  "groupName": "Startup",
+  "platform": "Windows",
+  "gameTarget": "ActionRoguelike",
+  "captureMap": "/Game/ActionRoguelike/Maps/TestLevel.TestLevel",
+  "cookMaps": [
+    "/Game/ActionRoguelike/Maps/TestLevel.TestLevel"
+  ],
+  "captureStrategy": "Full",
+  "bAutomaticRoute": true,
+  "automaticArguments": "-PSOValidation",
+  "completionMarker": "label=Complete",
+  "expectedActions": 6,
+  "runtimeMode": "Bundled",
+  "bClearDriverCache": false,
+  "bBackground": false,
+  "backgroundBudgetMs": 2,
+  "analysisEndSeconds": 15,
+  "outputArgument": "PSOValidationOutput",
+  "prepareScript": {
+    "filePath": ""
+  },
+  "mapOptions": "?listen",
+  "prepareArguments": [],
+  "analysisStartSeconds": 0,
+  "successPattern": "PSOValidation action=\\S+ started=1",
+  "launchArguments": [
+    "-NoSteam"
+  ]
 }

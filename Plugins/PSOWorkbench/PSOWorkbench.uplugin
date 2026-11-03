@@ -8,7 +8,7 @@
   "CanContainContent": false,
   "EnabledByDefault": true,
   "Modules": [
-    { "Name": "PSOWorkbenchRuntime", "Type": "Runtime", "LoadingPhase": "PostConfigInit" },
+    { "Name": "PSOWorkbenchRuntime", "Type": "Runtime", "LoadingPhase": "PostConfigInit", "TargetAllowList": ["Editor", "Game", "Client"] },
     { "Name": "PSOWorkbenchEditor", "Type": "EditorNoCommandlet", "LoadingPhase": "Default" }
   ]
 }

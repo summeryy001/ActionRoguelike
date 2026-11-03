@@ -3,6 +3,10 @@ param([Parameter(Mandatory=$true)][string]$Request)
 $ErrorActionPreference='Stop'
 $Request=(Resolve-Path -LiteralPath $Request).Path
 $R=[IO.File]::ReadAllText($Request)|ConvertFrom-Json
+. "$PSScriptRoot/Dependencies.ps1"
+foreach($Pair in @{MapOptions='';LaunchArguments=@();PrepareScript='';PrepareArguments=@();SuccessPattern='';OutputArgument='';AnalysisStartSeconds=0;AnalysisEndSeconds=15}.GetEnumerator()){
+    if(!$R.PSObject.Properties[$Pair.Key]){$R|Add-Member -NotePropertyName $Pair.Key -NotePropertyValue $Pair.Value}
+}
 $Job=Split-Path $Request
 $Root=[IO.Path]::GetDirectoryName($R.ProjectFile)
 $Name=[IO.Path]::GetFileNameWithoutExtension($R.ProjectFile)
@@ -17,7 +21,10 @@ function Status([string]$Phase,[string]$Message,[string]$ActiveLog=$LogPath,[str
     Note $Message
 }
 function Inventory($Files){@($Files|Sort-Object FullName|ForEach-Object {[ordered]@{name=$_.Name;path=$_.FullName;bytes=$_.Length;sha256=(HashFile $_.FullName)}})}
-function PutState([string]$Key,$Value){$State|Add-Member -NotePropertyName $Key -NotePropertyValue $Value -Force;JsonFile $State $StateFile}
+function PutState([string]$Key,$Value){
+    if($Key -in @('collector','conversion','installed','bundled','validation','analysis')){$Value=AddIdentity $Key $Value}
+    $State|Add-Member -NotePropertyName $Key -NotePropertyValue $Value -Force;JsonFile $State $StateFile
+}
 function GetIni([string]$File,[string]$Section,[string]$Key){
     if(!(Test-Path $File)){return $null};$InSection=$false;$Value=$null
     foreach($Line in [IO.File]::ReadAllLines($File)){
@@ -43,7 +50,16 @@ function RequireConfig {
 }
 function BuildPackage([bool]$Bundled){
     RequireConfig
-    if($Bundled -and !$State.installed){throw '请先转换并安装 Stable PSO 清单。'}
+    if($Bundled){RequireArtifact 'installed'}
+    if($R.PrepareScript){
+        $Prep=ResolvePrepareScript;Status 'Prepare' '正在执行方案配置的项目准备脚本' "$Job/prepare.log"
+        JsonFile @{script=$Prep;sha256=(HashFile $Prep);arguments=@($R.PrepareArguments)} "$Job/prepare-command.json"
+        & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $Prep @($R.PrepareArguments) *> "$Job/prepare.log"
+        if($LASTEXITCODE -ne 0){throw '项目准备脚本失败，未开始构建。'}
+        $script:CurrentSourceStamp=SourceStamp
+        RefreshValidity
+        if($Bundled){RequireArtifact 'installed'}
+    }
     $Engine=$R.EngineRoot
     $BuildLog="$Job/build.log";Status 'Build' '正在构建 Windows Game（不会链接编辑器 DLL）' $BuildLog
     & "$Engine/Engine/Build/BatchFiles/Build.bat" $R.GameTarget Win64 Development ('-Project="'+$R.ProjectFile+'"') -WaitMutex -NoHotReloadFromIDE -MaxParallelActions=4 *> $BuildLog
@@ -63,7 +79,8 @@ function BuildPackage([bool]$Bundled){
     $Keys|Copy-Item -Destination "$Job/StableKeys"
     $Exe="$Archive/Windows/$Name/Binaries/Win64/$($R.GameTarget).exe"
     if(!(Test-Path $Exe)){throw "未找到 Game EXE：$Exe。请检查构建目标。"}
-    $Result=[ordered]@{id=(Split-Path $Job -Leaf);package=$Archive;exe=$Exe;exeHash=(HashFile $Exe);keys=(Inventory @(Get-ChildItem "$Job/StableKeys" -File));created=(Get-Date).ToString('o');evidence=$Job}
+    $PackageFiles=@(Get-ChildItem "$Archive/Windows" -Recurse -File|Where-Object {$_.Extension -in @('.exe','.pak','.utoc','.ucas','.dll')})
+    $Result=[ordered]@{id=(Split-Path $Job -Leaf);package=$Archive;exe=$Exe;exeHash=(HashFile $Exe);packageFiles=(Inventory $PackageFiles);keys=(Inventory @(Get-ChildItem "$Job/StableKeys" -File));created=(Get-Date).ToString('o');evidence=$Job}
     if($Bundled){
         $InputDir="$Root/Build/Windows/PipelineCaches"
         $Inputs=@(Get-ChildItem $InputDir -Recurse -File -Filter "*${Name}_${Format}.spc")
@@ -90,6 +107,7 @@ function BuildPackage([bool]$Bundled){
     Note ('构建成功：'+$Exe)
 }
 function RunGame([bool]$Capture){
+    RequireArtifact $(if($Capture){'collector'}else{'bundled'})
     $Build=if($Capture){$State.collector}else{$State.bundled}
     if(!$Build){throw '请先生成对应的 Windows 包。'}
     if((HashFile $Build.exe) -ne $Build.exeHash){throw 'EXE 与构建记录不匹配，请重新构建。'}
@@ -108,20 +126,22 @@ function RunGame([bool]$Capture){
     if($Auto){$Settings['r.PSOPrecaching']=1;$Settings['r.PSOPrecache.GlobalShaders']=1;$Settings['r.PSOPrecache.Validation']=2;$Settings['r.PSOPrecache.ProxyCreationStrategy']=1}
     $Overrides=($Settings.Keys|ForEach-Object {'[SystemSettings]:{0}={1}' -f $_,$Settings[$_]}) -join ','
     $Session="$Job/Session";New-Item $Session -ItemType Directory|Out-Null
-    $ArgsList=@(($R.CaptureMap+'?listen'),'-dx12','-sm6','-windowed','-ResX=1280','-ResY=720','-NoSteam','-NoVSync','-trace=cpu,frame,bookmark,log,gpu','-statnamedevents',
-        ('-UserDir="'+$Session+'/User"'),('-abslog="'+$Session+'/game.log"'),('-tracefile="'+$Session+'/capture.utrace"'),('-PSOWorkbenchSession="'+$Session+'"'),('-PSOValidationOutput="'+$Session+'"'),('-ini:Engine:'+$Overrides),('-ExecCmds="t.IdleWhenNotForeground 0,t.MaxFPS 0,r.VSync 0,'+($Settings.Keys -join ',')+'"'))
+    $ArgsList=@(($R.CaptureMap+$R.MapOptions),'-dx12','-sm6','-windowed','-ResX=1280','-ResY=720','-NoVSync','-trace=cpu,frame,bookmark,log,gpu','-statnamedevents',
+        ('-UserDir='+$Session+'/User'),('-abslog='+$Session+'/game.log'),('-tracefile='+$Session+'/capture.utrace'),('-PSOWorkbenchSession='+$Session),('-ini:Engine:'+$Overrides),('-ExecCmds=t.IdleWhenNotForeground 0,t.MaxFPS 0,r.VSync 0,'+($Settings.Keys -join ',')))
+    $ArgsList+=@($R.LaunchArguments)
+    if($R.OutputArgument){$ArgsList+=('-'+$R.OutputArgument+'='+$Session)}
     if($Capture){$ArgsList+='-logPSO'}elseif($R.ClearDriverCache){$ArgsList+='-clearPSODriverCache'}
     if($R.AutomaticRoute -and $R.AutomaticArguments){$ArgsList+=@($R.AutomaticArguments -split '\s+'|Where-Object {$_})}
     JsonFile @{build=$Build.id;settings=$Settings;arguments=$ArgsList;capture=$Capture;clearDriverCacheRequested=(!$Capture -and $R.ClearDriverCache)} "$Session/manifest.json"
     Status 'GameRunning' $(if($R.AutomaticRoute){'游戏运行中：执行项目自动路线'}else{'手动跑包中：完成覆盖后点击“结束当前游戏”'}) "$Session/game.log" $Session
-    $Process=Start-Process $Build.exe -ArgumentList $ArgsList -WorkingDirectory (Split-Path $Build.exe) -PassThru
+    $Process=Start-Process $Build.exe -ArgumentList @($ArgsList|ForEach-Object {QuoteNativeArg $_}) -WorkingDirectory (Split-Path $Build.exe) -PassThru
     $Limit=if($R.AutomaticRoute){600}else{7200}
     if(!$Process.WaitForExit($Limit*1000)){Stop-Process -Id $Process.Id;throw '运行超时，已终止本次游戏；证据保留。'}
     $Process.Refresh();if($Process.ExitCode -ne 0){throw "游戏退出码异常：$($Process.ExitCode)"}
     $Text=Get-Content "$Session/game.log" -Raw
     if($Text -match 'Ensure condition failed|Fatal error:|Assertion failed:'){throw '运行包含 Ensure/Fatal/Assertion，请检查游戏日志。'}
     if($R.AutomaticRoute -and $R.CompletionMarker -and !$Text.Contains($R.CompletionMarker)){throw '未观察到自动路线完成标记。'}
-    if($R.AutomaticRoute -and $R.ExpectedActions -gt 0 -and [regex]::Matches($Text,'PSOValidation action=\S+ started=1').Count -ne $R.ExpectedActions){throw '自动路线成功动作数不足，未通过验收。'}
+    if($R.AutomaticRoute -and $R.ExpectedActions -gt 0 -and [regex]::Matches($Text,$R.SuccessPattern,[Text.RegularExpressions.RegexOptions]::None,[TimeSpan]::FromSeconds(2)).Count -ne $R.ExpectedActions){throw '成功动作日志匹配次数不符，未通过验收。'}
     foreach($Key in $Settings.Keys){
         $Found=[regex]::Matches($Text,[regex]::Escape($Key)+'\s*=\s*"?([0-9.]+)"?')
         if(!$Found.Count -or [double]$Found[$Found.Count-1].Groups[1].Value -ne [double]$Settings[$Key]){throw "运行配置未生效：$Key"}
@@ -134,13 +154,16 @@ function RunGame([bool]$Capture){
         $Records=@(Get-ChildItem "$Session/User" -Recurse -File -Filter '*.rec.upipelinecache')
         if(!$Records.Count -or @($Records|Where-Object {$_.Length -eq 0}).Count){throw '没有有效原始 PSO 记录，请实际覆盖场景后再结束。'}
         $Result.records=Inventory $Records
+        $Result=AddIdentity 'capture' $Result
         PutState 'captures' (@($State.captures)+@($Result))
+        PutState 'capturesRevision' ([guid]::NewGuid().ToString('N'))
     }else{
         if($R.RuntimeMode -in @(2,3)){
             $Batches=@($Runtime.batches|Where-Object {$_.name -eq $Name -and $_.queued -gt 0 -and $_.complete -and $_.queued -eq $_.processed})
             if(!$Batches.Count){throw '未观察到目标 Bundled 批次开始并完整结束。'}
             if(!$Text.Contains("${Name}_${Format}.stable.upipelinecache")){throw '未观察到目标随包缓存打开。'}
         }
+        $Result.outputs=Inventory @(Get-Item "$Session/game.log","$Session/capture.utrace","$Session/runtime-summary.json")
         PutState 'validation' $Result
     }
     JsonFile $Result "$Session/acceptance.json"
@@ -158,8 +181,12 @@ try {
     New-Item $StateRoot -ItemType Directory -Force|Out-Null
     $StateFile="$StateRoot/state.json"
     $State=if(Test-Path $StateFile){Get-Content $StateFile -Raw|ConvertFrom-Json}else{[pscustomobject]@{captures=@()}}
+    ValidateOptions
+    $CurrentSourceStamp=SourceStamp
+    RefreshValidity
     Status 'Starting' ('开始任务：'+$R.Action)
     switch($R.Action){
+        'Inspect' { Note '已核对配置、来源与文件 Hash；待更新结果保留历史，但不能用于下游。' }
         'Preflight' {
             if(!(Test-Path "$($R.EngineRoot)/Engine/Build/BatchFiles/RunUAT.bat")){throw '引擎根目录不正确。'}
             if(!$R.CaptureMap -or !@($R.CookMaps|Where-Object {$_ -eq $R.CaptureMap}).Count){throw '运行地图必须包含在 Cook 地图列表。'}
@@ -191,13 +218,13 @@ try {
         'BuildCollector' { BuildPackage $false }
         'Capture' { RunGame $true }
         'Convert' {
-            if(!$State.collector){throw '没有采集包。'}
-            $Captures=@($State.captures|Where-Object {$_.build -eq $State.collector.id -and $_.valid})
+            RequireArtifact 'collector'
+            $Captures=@($State.captures|Where-Object {$_.build -eq $State.collector.id -and $_.valid -and !$_.staleReason})
             if(!$Captures.Count){throw '没有与当前采集包匹配的有效记录。'}
             $Records=@($Captures|ForEach-Object {$_.records})
             foreach($Item in @($Records)+@($State.collector.keys)){if((HashFile $Item.path) -ne $Item.sha256){throw '采集记录或 SHK 已改变。'}}
             $Out="$Job/PSOWB_$($R.ProfileName)_$($R.GroupName)_${Name}_${Format}.spc"
-            $ArgsList=@($R.ProjectFile,'-run=ShaderPipelineCacheTools','expand')+@($Records|ForEach-Object {$_.path})+@($State.collector.keys|ForEach-Object {$_.path})+@($Out,'-unattended','-nop4','-NoSteam','-NullRHI',('-abslog='+$Job+'/expand.log'))
+            $ArgsList=@($R.ProjectFile,'-run=ShaderPipelineCacheTools','expand')+@($Records|ForEach-Object {$_.path})+@($State.collector.keys|ForEach-Object {$_.path})+@($Out,'-unattended','-nop4','-NullRHI',('-abslog='+$Job+'/expand.log'))+@($R.LaunchArguments)
             Status 'Convert' '正在将匹配的原始记录与 SHK 转为 Stable 清单' "$Job/expand.log"
             & "$($R.EngineRoot)/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" @ArgsList *> "$Job/convert-console.log"
             if($LASTEXITCODE -ne 0){throw '转换失败。'}
@@ -206,6 +233,7 @@ try {
             PutState 'conversion' @{spc=$Out;sha256=(HashFile $Out);count=[int]$Count.Groups[1].Value;build=$State.collector.id;group=$R.GroupName}
         }
         'Install' {
+            RequireArtifact 'conversion'
             if(!$State.conversion -or (HashFile $State.conversion.spc) -ne $State.conversion.sha256){throw '请先生成有效 Stable 清单。'}
             $DestDir="$Root/Build/Windows/PipelineCaches";New-Item $DestDir -ItemType Directory -Force|Out-Null
             $Dest=Join-Path $DestDir ([IO.Path]::GetFileName($State.conversion.spc))
@@ -217,11 +245,17 @@ try {
         'BuildBundled' { BuildPackage $true }
         'Validate' { RunGame $false }
         'Analyze' {
-            $Run=if($State.validation){$State.validation}else{@($State.captures)|Select-Object -Last 1}
+            if($State.validation){RequireArtifact 'validation';$Run=$State.validation}else{
+                $Run=@($State.captures)|Select-Object -Last 1
+                if(!$Run -or $Run.staleReason){throw '来源采集待更新，请重新运行。'}
+            }
             if(!$Run -or !(Test-Path "$($Run.session)/capture.utrace")){throw '没有可分析的 Trace。'}
             if(!(Test-Path $R.InsightsExecutable)){throw '请在高级设置中选择 UnrealInsights.exe。'}
             $Out="$Job/events.csv"
-            $Command="TimingInsights.ExportTimingEvents $Out -columns=ThreadId,ThreadName,TimerId,TimerName,StartTime,EndTime,Duration,Depth -timers=*PSO*,*PipelineState*,*Precompile* -startTime=0 -endTime=15"
+            $StartTime=([double]$R.AnalysisStartSeconds).ToString([Globalization.CultureInfo]::InvariantCulture)
+            $EndTime=([double]$R.AnalysisEndSeconds).ToString([Globalization.CultureInfo]::InvariantCulture)
+            $Command="TimingInsights.ExportTimingEvents $Out -columns=ThreadId,ThreadName,TimerId,TimerName,StartTime,EndTime,Duration,Depth -timers=*PSO*,*PipelineState*,*Precompile* -startTime=$StartTime -endTime=$EndTime"
+            JsonFile @{startSeconds=$R.AnalysisStartSeconds;endSeconds=$R.AnalysisEndSeconds;source=$Run.session;command=$Command} "$Job/analysis-command.json"
             $ArgsList=@('-NoUI','-AutoQuit',('-OpenTraceFile="'+$Run.session+'/capture.utrace"'),('-ABSLOG="'+$Job+'/insights.log"'),('-ExecOnAnalysisCompleteCmd="'+$Command+'"'))
             Status 'Analyze' 'Insights 正在离线解析 Trace' "$Job/insights.log"
             $Process=Start-Process $R.InsightsExecutable -ArgumentList $ArgsList -PassThru -WindowStyle Hidden
@@ -229,11 +263,12 @@ try {
             $Process.Refresh();if($Process.ExitCode -ne 0 -or !(Test-Path $Out)){throw 'Insights 导出失败。'}
             $Rows=Import-Csv $Out
             $Count=@($Rows|Where-Object {$_.TimerName -match '^FShaderPipelineCache::Precompile|^PSOPrecache:|RHICreate(Graphics|Compute)PipelineState'}).Count
-            PutState 'analysis' @{events=$Out;source=$Run.session;scopeCount=$Count;evidence=$Job}
+            PutState 'analysis' @{events=$Out;source=$Run.session;scopeCount=$Count;evidence=$Job;outputs=(Inventory @(Get-Item $Out))}
             Note "已导出预编译/创建相关 CPU Scope：$Count。Scope 数量不是独立 PSO 数量。"
         }
         default {throw '未知工作台任务。'}
     }
+    RefreshValidity
     Status 'Succeeded' '任务成功；产物与日志已保存。'
     JsonFile @{success=$true;action=$R.Action;evidence=$Job;state=$StateFile} "$Job/result.json"
 }catch{

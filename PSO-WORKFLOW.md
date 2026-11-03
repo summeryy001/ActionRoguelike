@@ -323,3 +323,20 @@ README 记录用法及边界。PIE 数字属于整个 Editor 进程，不能作�
 第五批迁移：补固定路线、运行统计与 UI 失效状态验证，完成相同包对照和同事使用验收后再接正式发布。分阶段缓存调度、玩家进度选择、CDN/Chunk/UsageMask 与 Android 继续作为后续阶段，首版缓存组命名不宣称具备这些功能。
 
 迁移正式长期文档归 Tools/Documents/LokiClient，更新时运行 Tools/Documents/build-index.ps1；当前此段仅为 AR2 演练交接记录。下一步优先完成 AR2 通用性和产物依赖收敛，再进行 Client2 最小接入；不先在 Client2 全局启用 PSO，也不夹带其既有未提交改动。
+## 迁移前收敛：通用接口与产物依赖（2026-11-03）
+
+已将 AR2 专用地图/自动路线从插件构造函数移至 Config/PSOWorkbench/Profiles/WorkbenchUI.json。通用默认从 GameDefaultMap 读取地图并手动采集。地图 URL 选项、额外启动参数、成功日志正则/次数、结果目录参数名、分析开始/结束秒数均由方案提供；不再强制 ?listen 或 NoSteam，不内置 PSOValidation 日志。可选项目准备 .ps1 在 Native Build 前非交互执行，失败即停；支持参数数组。Runtime descriptor 排除 Server Target，未声称做过 Server 打包验收。
+
+新增 Scripts/Dependencies.ps1（schema 2），保存阶段配置、唯一产物/上游身份及文件 Hash。换采集包、新采集、转换/安装变化、SPC 集合变化、包体变化会沿依赖链失效；仅切运行模式使验收/分析待更新，不要求重建采集包。旧 schema 记录保留但不能当作当前有效；相同配置恢复且依赖未变可再次有效。包体身份覆盖 EXE/DLL/PAK/UTOC/UCAS，另核对 SHK、rec、SPC 与验收输出。大源资产仅按路径/大小/修改时间检测，完整边界见插件 README。
+
+Editor UI 增加“检查产物依赖 / 标记待更新”，相关配置修改即时标记，磁盘外部改动由检查任务核验；每次实际任务也重新检查并拒绝过期输入。小窗口右侧流程改为可滚动，避免按钮挤掉产物状态。Editor/Game 构建日志 Saved/workbench-portability-build.log 通过；最后布局修复后 Saved/workbench-portability-ui-build.log 再次通过。空白 HostProject 独立插件构建 Saved/workbench-portability-host-final.log 成功，未依赖 AR2 游戏模块。
+
+独立夹具回归 Scripts/Tests/Dependencies.Tests.ps1 共18项通过，证据 Saved/PSOWorkbench/Tests/20261103_Portability3；推送前以20261103_PrePush目录复核。首轮夹具暴露相对路径与根目录包含 Saved 时的排除规则问题，已修正，不把失败轮记为通过。另有实际准备脚本退出27用例，在 Native Build 前正确停止，证据 Saved/PSOWorkbench/Tests/PrepareFailureProject/Saved/Evidence。
+
+真实闭环证据 Saved/PSOWorkbench/PortabilitySmoke：BuildCollectorFinal、Capture、Convert、Install、BuildBundled、Validate、Analyze全部成功。地图 URL 无 ?listen，成功动作匹配与结果输出由方案传入；准备脚本观察到完整参数“value with spaces”。转换682项，合并后602项运行批次全部完成；Insights 实际使用2–9秒窗口并导出360条相关Scope，不等同独立PSO数量。运行模式改为Combined的 InspectChangedMode 将旧验收/分析标为过期，AnalyzeStaleRejected按预期拒绝；InspectRestoredMode恢复原配置后依赖有效。此轮未清理驱动缓存，仅验证功能，不是冷启动性能测试。
+
+本轮临时生成的 PSOWB_PortabilitySmoke SPC 已移至 Saved/PSOWorkbench/PortabilitySmoke/InstalledSmokeInput.spc 保留证据，不进入本次提交或后续正常打包输入。原三份已跟踪 SPC 未变。最后 UI 布局修改与该测试输入清理使上述临时方案需重新检查/生成，这是依赖规则预期；保留闭环发生时的成功证据，不把临时方案宣称为当前可直接复用。
+
+最后 Computer Use 已在新版 UI 加载工程示例方案并成功执行 Inspect（Saved/PSOWorkbench/Jobs/20261103_102225_151E9A），旧身份记录显示待更新。准备滚动复核状态区时用户按 Escape 停止 Computer Use，已停止，未将最后滚动交互记为通过。
+
+随后用户明确授权整理提交并将 AR2 本地 pso-workflow 推送至 https://github.com/summeryy001/ActionRoguelike.git 的同名分支，不合并。远端现有默认分支为 master，推送前为 f3c7b271de0185c97445b36ce103bfa7388b6bc6；以实际 git ls-remote 输出校验为准。AR2 为独立初始化历史，本次保留历史，不 rebase、merge 或强推，也不更新默认分支。Client2 未修改；后续迁移工作等待用户通知。

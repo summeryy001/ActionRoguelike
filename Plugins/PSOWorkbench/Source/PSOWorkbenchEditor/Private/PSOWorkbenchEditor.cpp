@@ -40,19 +40,9 @@ UPSOWorkbenchSettings::UPSOWorkbenchSettings()
     InsightsExecutable.FilePath=FPaths::ConvertRelativePathToFull(FPaths::EngineDir()/TEXT("Binaries/Win64/UnrealInsights.exe"));
     const FString InsightsOverride=FPlatformMisc::GetEnvironmentVariable(TEXT("PSOWORKBENCH_INSIGHTS"));
     if(!InsightsOverride.IsEmpty())InsightsExecutable.FilePath=InsightsOverride;
-    if(FString(FApp::GetProjectName())==TEXT("ActionRoguelike"))
-    {
-        CaptureMap=FSoftObjectPath(TEXT("/Game/ActionRoguelike/Maps/TestLevel.TestLevel"));
-        CookMaps.Add(CaptureMap);
-        AutomaticArguments=TEXT("-PSOValidation"); CompletionMarker=TEXT("label=Complete");ExpectedActions=6;
-    }
-    else
-    {
-        FString Map;
-        if(GConfig) GConfig->GetString(TEXT("/Script/EngineSettings.GameMapsSettings"),TEXT("GameDefaultMap"),Map,GEngineIni);
-        CaptureMap=FSoftObjectPath(Map); if(!Map.IsEmpty()) CookMaps.Add(CaptureMap);
-        bAutomaticRoute=false;
-    }
+    FString Map;
+    if(GConfig) GConfig->GetString(TEXT("/Script/EngineSettings.GameMapsSettings"),TEXT("GameDefaultMap"),Map,GEngineIni);
+    CaptureMap=FSoftObjectPath(Map); if(!Map.IsEmpty()) CookMaps.Add(CaptureMap);
 }
 
 static TSharedPtr<FJsonObject> ReadJson(const FString& Path)
@@ -70,6 +60,45 @@ static void WriteJson(const FString& Path,const TSharedRef<FJsonObject>& Object)
 static FString Field(const TSharedPtr<FJsonObject>& Object,const TCHAR* Name)
 {
     FString Result; if(Object) Object->TryGetStringField(Name,Result); return Result;
+}
+
+static TSharedRef<FJsonObject> CurrentRequest(const FString& Action)
+{
+    const auto* Settings=GetDefault<UPSOWorkbenchSettings>();
+    TSharedRef<FJsonObject> Request=MakeShared<FJsonObject>();
+    Request->SetStringField(TEXT("Action"),Action);
+    Request->SetStringField(TEXT("ProjectFile"),FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()));
+    Request->SetStringField(TEXT("EngineRoot"),Settings->EngineRoot);
+    Request->SetStringField(TEXT("GameTarget"),Settings->GameTarget);
+    Request->SetStringField(TEXT("ProfileName"),Settings->ProfileName);
+    Request->SetStringField(TEXT("GroupName"),Settings->GroupName);
+    Request->SetNumberField(TEXT("Platform"),(int32)Settings->Platform);
+    Request->SetStringField(TEXT("CaptureMap"),Settings->CaptureMap.GetLongPackageName());
+    TArray<TSharedPtr<FJsonValue>> Maps;
+    for(const auto& Map:Settings->CookMaps) Maps.Add(MakeShared<FJsonValueString>(Map.GetLongPackageName()));
+    Request->SetArrayField(TEXT("CookMaps"),Maps);
+    Request->SetNumberField(TEXT("CaptureStrategy"),(int32)Settings->CaptureStrategy);
+    Request->SetNumberField(TEXT("RuntimeMode"),(int32)Settings->RuntimeMode);
+    Request->SetBoolField(TEXT("AutomaticRoute"),Settings->bAutomaticRoute);
+    Request->SetStringField(TEXT("AutomaticArguments"),Settings->AutomaticArguments);
+    Request->SetStringField(TEXT("CompletionMarker"),Settings->CompletionMarker);
+    Request->SetNumberField(TEXT("ExpectedActions"),Settings->ExpectedActions);
+    Request->SetStringField(TEXT("SuccessPattern"),Settings->SuccessPattern);
+    Request->SetStringField(TEXT("OutputArgument"),Settings->OutputArgument);
+    Request->SetStringField(TEXT("MapOptions"),Settings->MapOptions);
+    Request->SetStringField(TEXT("PrepareScript"),Settings->PrepareScript.FilePath);
+    for(const auto& Pair:TArray<TPair<FString,TArray<FString>>>{{TEXT("PrepareArguments"),Settings->PrepareArguments},{TEXT("LaunchArguments"),Settings->LaunchArguments}})
+    {
+        TArray<TSharedPtr<FJsonValue>> Values;for(const auto& Value:Pair.Value)Values.Add(MakeShared<FJsonValueString>(Value));
+        Request->SetArrayField(Pair.Key,Values);
+    }
+    Request->SetBoolField(TEXT("ClearDriverCache"),Settings->bClearDriverCache);
+    Request->SetBoolField(TEXT("Background"),Settings->bBackground);
+    Request->SetNumberField(TEXT("BackgroundBudgetMs"),Settings->BackgroundBudgetMs);
+    Request->SetNumberField(TEXT("AnalysisStartSeconds"),Settings->AnalysisStartSeconds);
+    Request->SetNumberField(TEXT("AnalysisEndSeconds"),Settings->AnalysisEndSeconds);
+    Request->SetStringField(TEXT("InsightsExecutable"),Settings->InsightsExecutable.FilePath);
+    return Request;
 }
 
 class FWorkbenchSession:public TSharedFromThis<FWorkbenchSession>
@@ -120,28 +149,7 @@ public:
         if(Action==TEXT("Validate") && Settings->bClearDriverCache)
             if(FMessageDialog::Open(EAppMsgType::YesNo,LOCTEXT("ClearQuestion","本次验收将请求清理本机显卡驱动缓存。清理可能影响其他应用的首次运行体验，且不保证完全成功。继续？"))!=EAppReturnType::Yes)return;
         Job=FPaths::ConvertRelativePathToFull(FPaths::GetPath(FPaths::GetProjectFilePath())/TEXT("Saved/PSOWorkbench/Jobs")/(FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"))+TEXT("_")+FGuid::NewGuid().ToString(EGuidFormats::Digits).Left(6)));
-        TSharedRef<FJsonObject> Request=MakeShared<FJsonObject>();
-        Request->SetStringField(TEXT("Action"),Action);
-        Request->SetStringField(TEXT("ProjectFile"),FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()));
-        Request->SetStringField(TEXT("EngineRoot"),Settings->EngineRoot);
-        Request->SetStringField(TEXT("GameTarget"),Settings->GameTarget);
-        Request->SetStringField(TEXT("ProfileName"),Settings->ProfileName);
-        Request->SetStringField(TEXT("GroupName"),Settings->GroupName);
-        Request->SetNumberField(TEXT("Platform"),(int32)Settings->Platform);
-        Request->SetStringField(TEXT("CaptureMap"),Settings->CaptureMap.GetLongPackageName());
-        TArray<TSharedPtr<FJsonValue>> Maps;
-        for(const auto& Map:Settings->CookMaps) Maps.Add(MakeShared<FJsonValueString>(Map.GetLongPackageName()));
-        Request->SetArrayField(TEXT("CookMaps"),Maps);
-        Request->SetNumberField(TEXT("CaptureStrategy"),(int32)Settings->CaptureStrategy);
-        Request->SetNumberField(TEXT("RuntimeMode"),(int32)Settings->RuntimeMode);
-        Request->SetBoolField(TEXT("AutomaticRoute"),Settings->bAutomaticRoute);
-        Request->SetStringField(TEXT("AutomaticArguments"),Settings->AutomaticArguments);
-        Request->SetStringField(TEXT("CompletionMarker"),Settings->CompletionMarker);
-        Request->SetNumberField(TEXT("ExpectedActions"),Settings->ExpectedActions);
-        Request->SetBoolField(TEXT("ClearDriverCache"),Settings->bClearDriverCache);
-        Request->SetBoolField(TEXT("Background"),Settings->bBackground);
-        Request->SetNumberField(TEXT("BackgroundBudgetMs"),Settings->BackgroundBudgetMs);
-        Request->SetStringField(TEXT("InsightsExecutable"),Settings->InsightsExecutable.FilePath);
+        TSharedRef<FJsonObject> Request=CurrentRequest(Action);
         WriteJson(Job/TEXT("request.json"),Request);
         const FString Script=IPluginManager::Get().FindPlugin(TEXT("PSOWorkbench"))->GetBaseDir()/TEXT("Scripts/Launch.ps1");
         const FString Params=FString::Printf(TEXT("-NoProfile -ExecutionPolicy Bypass -File \"%s\" -Request \"%s\""),*FPaths::ConvertRelativePathToFull(Script),*(Job/TEXT("request.json")));
@@ -156,19 +164,33 @@ public:
         auto State=ReadJson(ProfileRoot()/TEXT("state.json"));
         if(!State)return TEXT("本方案尚无产物。每个方案有独立记录，失败任务不会替换上一次成功产物。");
         FString Result;
+        const auto Current=CurrentRequest(TEXT("Inspect"));
+        TMap<FString,bool> Stale;
         for(const auto& Pair:TArray<TPair<FString,FString>>{{TEXT("collector"),TEXT("采集包")},{TEXT("conversion"),TEXT("Stable 清单")},{TEXT("installed"),TEXT("已安装输入")},{TEXT("bundled"),TEXT("Bundled 包")},{TEXT("validation"),TEXT("运行验收")},{TEXT("analysis"),TEXT("Insights 分析")}})
         {
             const TSharedPtr<FJsonObject>* Item=nullptr;
             if(State->TryGetObjectField(Pair.Key,Item))
             {
                 double Count=0;
-                Result+=Pair.Value+TEXT("：已完成");
+                FString Reason=Field(*Item,TEXT("staleReason"));
+                const TSharedPtr<FJsonObject>* Recorded=nullptr;
+                if(!(*Item)->TryGetObjectField(TEXT("settings"),Recorded))Reason=TEXT("旧记录缺少依赖身份，请重新生成");
+                else for(const auto& Setting:(*Recorded)->Values)
+                {
+                    const auto* Value=Current->Values.Find(Setting.Key);
+                    if(!Value || !FJsonValue::CompareEqual(*Setting.Value,*(*Value))) {Reason=TEXT("当前方案配置已变化");break;}
+                }
+                const TArray<TSharedPtr<FJsonValue>>* Parents=nullptr;
+                if((*Item)->TryGetArrayField(TEXT("parentKeys"),Parents))for(const auto& Parent:*Parents)
+                    if(Stale.FindRef(Parent->AsString()))Reason=TEXT("上游产物待更新");
+                Stale.Add(Pair.Key,!Reason.IsEmpty());
+                Result+=Pair.Value+(Reason.IsEmpty()?TEXT("：已完成（上次依赖检查有效）"):TEXT("：待更新 — ")+Reason);
                 if((*Item)->TryGetNumberField(TEXT("count"),Count))Result+=FString::Printf(TEXT("（%.0f 项/组合）"),Count);
                 Result+=TEXT("\n");
             }
         }
         const TArray<TSharedPtr<FJsonValue>>* Captures=nullptr;
-        if(State->TryGetArrayField(TEXT("captures"),Captures))Result+=FString::Printf(TEXT("采集会话：%d 次（转换时仅采用当前采集包的记录）"),Captures->Num());
+        if(State->TryGetArrayField(TEXT("captures"),Captures))Result+=FString::Printf(TEXT("采集会话：%d 次（后台按依赖筛选）；文件变更请点击检查产物依赖。"),Captures->Num());
         return Result;
     }
 };
@@ -226,9 +248,10 @@ public:
                 +SHorizontalBox::Slot().AutoWidth().Padding(6,0)[SNew(SButton).Text(LOCTEXT("Save","保存当前方案")).IsEnabled_Lambda([this]{return !Session->IsBusy();}).OnClicked(this,&SPSOWorkbenchPanel::SaveProfile)]]
             +SVerticalBox::Slot().FillHeight(1).Padding(8)[SNew(SSplitter)
                 +SSplitter::Slot().Value(0.46f)[SNew(SBox).IsEnabled_Lambda([this]{return !Session->IsBusy();})[Details.ToSharedRef()]]
-                +SSplitter::Slot().Value(0.54f)[SNew(SVerticalBox)
+                +SSplitter::Slot().Value(0.54f)[SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
                     +SVerticalBox::Slot().AutoHeight().Padding(4)[SNew(STextBlock).Text(LOCTEXT("Steps","按顺序完成构建；步骤可独立重试"))]
                     +SVerticalBox::Slot().AutoHeight().Padding(4)[Task(TEXT("1  检查配置与前置条件"),TEXT("Preflight"),TEXT("检查平台、地图列表与构建设置"))]
+                    +SVerticalBox::Slot().AutoHeight().Padding(4)[Task(TEXT("检查产物依赖 / 标记待更新"),TEXT("Inspect"),TEXT("核对配置、来源、文件 Hash 及上游身份；旧记录须重新生成"))]
                     +SVerticalBox::Slot().AutoHeight().Padding(4)[Task(TEXT("应用构建配置（自动备份）"),TEXT("ApplyConfig"),TEXT("仅修改3项 Stable Keys / Shader 库配置；会先显示确认"))]
                     +SVerticalBox::Slot().AutoHeight().Padding(4)[Task(TEXT("2  构建 Windows 采集包"),TEXT("BuildCollector"),TEXT("构建独立 Game，Cook 并归档匹配 SHK"))]
                     +SVerticalBox::Slot().AutoHeight().Padding(4)[Task(TEXT("3  启动采集（手动 / 自动路线）"),TEXT("Capture"),TEXT("使用采集策略运行；手动模式完成后点结束游戏"))]
@@ -238,8 +261,8 @@ public:
                     +SVerticalBox::Slot().AutoHeight().Padding(4)[Task(TEXT("7  运行并验收所选模式"),TEXT("Validate"),TEXT("检查实际配置、Runtime 批次与退出；冷缓存勾选会确认"))]
                     +SVerticalBox::Slot().AutoHeight().Padding(4)[Task(TEXT("8  Insights 离线分析"),TEXT("Analyze"),TEXT("使用高级设置选择的 UnrealInsights.exe 导出 CPU Scope"))]
                     +SVerticalBox::Slot().AutoHeight().Padding(4)[SNew(SButton).Text(LOCTEXT("Stop","结束当前游戏并保存记录")).IsEnabled_Lambda([this]{return Session->CanStop();}).OnClicked_Lambda([this]{Session->Stop();return FReply::Handled();})]
-                    +SVerticalBox::Slot().FillHeight(1).Padding(4)[SNew(SScrollBox)+SScrollBox::Slot()[SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(Session->Artifacts());})]]
-                ]]
+                    +SVerticalBox::Slot().AutoHeight().Padding(4)[SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(Session->Artifacts());})]
+                ]]]
             +SVerticalBox::Slot().AutoHeight().Padding(8)[SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(Session->Message);})]
             +SVerticalBox::Slot().FillHeight(0.45f).Padding(8,0)[SNew(SMultiLineEditableTextBox).IsReadOnly(true).Text_Lambda([this]{return FText::FromString(Session->GetLog());})]
             +SVerticalBox::Slot().AutoHeight().Padding(8)[SNew(SHorizontalBox)
